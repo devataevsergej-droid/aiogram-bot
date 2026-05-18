@@ -1,0 +1,37 @@
+services:
+  - type: web
+    name: lisakovsk-job-bot
+    env: python
+    plan: free
+    rootDir: src/job_lisakovsk_bot
+    buildCommand: pip install -r requirements.txt
+    startCommand: python main.py
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: BOT_TOKEN
+        sync: false
+      - key: BOT_USERNAME
+        value: LisakovskJobBot
+      - key: SUPABASE_URL
+        value: https://kmjrccppuykjsjycygzy.supabase.co
+      - key: SUPABASE_KEY
+        sync: false
+      - key: ADMIN_ID
+        value: "8614783423"
+      - key: ADMIN_CHAT_ID
+        value: "-1003908379906"
+      - key: CHANNEL_ID
+        value: "-1003985989395"
+      - key: WEBHOOK_URL
+        value: https://lisakovsk-job-bot.onrender.com
+      - key: WEBHOOK_PATH
+        value: /webhook
+      - key: BEELINE_PAYMENT_PHONE
+        sync: false
+      - key: PROJECT_ORACLE_URL
+        sync: false
+      - key: PROJECT_RATING_URL
+        sync: false
+      - key: PROJECT_WORKSHOP_URL
+        sync: false
