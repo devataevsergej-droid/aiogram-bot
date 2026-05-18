@@ -3,7 +3,7 @@ services:
     name: lisakovsk-job-bot
     env: python
     plan: free
-    buildCommand: pip install -e .
+    buildCommand: pip install -r requirements.txt
     startCommand: python main.py
     healthCheckPath: /health
     autoDeploy: true
@@ -23,7 +23,7 @@ services:
       - key: CHANNEL_ID
         value: "-1003985989395"
       - key: WEBHOOK_URL
-        value: https://lisakovsk-job-bot.onrender.com/webhook
+        value: https://lisakovsk-job-bot.onrender.com
       - key: WEBHOOK_PATH
         value: /webhook
       - key: BEELINE_PAYMENT_PHONE
