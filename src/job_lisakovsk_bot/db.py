@@ -441,7 +441,7 @@ class SupabaseRepository:
             return self.client.table("referrals").select("referrer_id").eq("referred_id", user_id).maybe_single().execute()
 
         result = await self._run(query)
-        return int(result.data["referrer_id"]) if result.data else None
+        return int(result.data["referrer_id"]) if result and result.data else None
 
     async def referral_vip_bonus_available(self, user_id: int, referrals_count: int) -> bool:
         if referrals_count < 10:
