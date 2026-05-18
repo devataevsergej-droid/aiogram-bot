@@ -191,7 +191,7 @@ class SupabaseRepository:
             return self.client.table("usage_limits").select("*").eq("user_id", user_id).maybe_single().execute()
 
         result = await self._run(select_query)
-        if not result.data:
+        if not result or not result.data:
             payload = {"user_id": user_id, "last_reset_month": current_month, "last_reset_day": current_day}
 
             def insert_query():
