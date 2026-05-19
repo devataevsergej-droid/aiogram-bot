@@ -339,7 +339,7 @@ async def seeker_about(message: Message, state: FSMContext, repo: SupabaseReposi
         await message.answer("❌ Ошибка при сохранении анкеты. Попробуйте позже.")
 
 
-@router.message(F.text.in_({"Смотреть вакансии", "/vacancies"}))
+@router.message(F.text.in_({"🔍 Смотреть вакансии", "/vacancies"}))
 async def show_vacancies(message: Message, repo: SupabaseRepository, settings: Settings) -> None:
     try:
         seeker = await repo.get_seeker(message.from_user.id)
@@ -358,8 +358,7 @@ async def show_vacancies(message: Message, repo: SupabaseRepository, settings: S
         await message.answer("❌ Ошибка при загрузке вакансий. Попробуйте позже.")
 
 
-@router.message(F.text == "Ищу сотрудника")
-@router.message(F.text == "Разместить вакансию")
+@router.message(F.text == "📢 Разместить вакансию")
 async def vacancy_start(message: Message, state: FSMContext) -> None:
     await state.clear()
     await state.set_state(VacancyForm.title)
@@ -661,7 +660,7 @@ async def manual_payment_reject(callback: CallbackQuery, repo: SupabaseRepositor
     await callback.answer()
 
 
-@router.message(F.text == "Пригласить друга")
+@router.message(F.text == "👥 Пригласить друга")
 @router.message(Command("invite"))
 async def invite_friend(message: Message, repo: SupabaseRepository, settings: Settings) -> None:
     referrals_count = await repo.count_referrals(message.from_user.id)
@@ -700,7 +699,7 @@ async def projects(message: Message, settings: Settings) -> None:
         f"🛠 Мастерская: {settings.project_workshop_url}"
     )
 
-@router.message(F.text == "Личный кабинет")
+@router.message(F.text == "👤 Личный кабинет")
 async def test_lk(message: Message):
     await message.answer("✅ Хендлер поймал текст 'Личный кабинет'")
 
@@ -709,7 +708,7 @@ async def lk_command(message: Message, repo: SupabaseRepository):
     await my_stats(message, repo)
 
 
-@router.message(F.text.in_({"Личный кабинет", "/my_stats"}))
+@router.message(F.text.in_({"👤 Личный кабинет", "/my_stats"}))
 async def my_stats(message: Message, repo: SupabaseRepository) -> None:
     try:
         user_role = await get_user_role(message.from_user.id, repo)
