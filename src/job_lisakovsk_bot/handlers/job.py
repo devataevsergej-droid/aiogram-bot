@@ -699,6 +699,14 @@ async def projects(message: Message, settings: Settings) -> None:
         f"🛠 Мастерская: {settings.project_workshop_url}"
     )
 
+@router.message(F.text == "Личный кабинет")
+async def test_lk(message: Message):
+    await message.answer("✅ Хендлер поймал текст 'Личный кабинет'")
+
+@router.message(Command("lk"))
+async def lk_command(message: Message, repo: SupabaseRepository):
+    await my_stats(message, repo)
+
 
 @router.message(F.text.in_({"Личный кабинет", "/my_stats"}))
 async def my_stats(message: Message, repo: SupabaseRepository) -> None:
