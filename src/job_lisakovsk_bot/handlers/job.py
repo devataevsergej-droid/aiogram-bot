@@ -689,6 +689,10 @@ async def our_channel(message: Message, settings: Settings):
         )
     )
 
+@router.message(F.text == "📝 Ищу работу")
+async def find_job_button(message: Message, state: FSMContext):
+    await seeker_start(message, state)
+
 
 @router.message(F.text == "Наши проекты")
 async def projects(message: Message, settings: Settings) -> None:
