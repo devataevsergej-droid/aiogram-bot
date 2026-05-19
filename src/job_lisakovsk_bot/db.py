@@ -38,6 +38,8 @@ class SupabaseRepository:
             return self.client.table("job_seekers").select("*").eq("user_id", user_id).maybe_single().execute()
 
         result = await self._run(query)
+        if not result or not result.data:
+            return None
         return result.data
 
     async def create_vacancy(self, payload: dict[str, Any]) -> dict[str, Any]:
@@ -52,6 +54,8 @@ class SupabaseRepository:
             return self.client.table("job_vacancies").select("*").eq("id", vacancy_id).maybe_single().execute()
 
         result = await self._run(query)
+        if not result or not result.data:
+            return None
         return result.data
 
     async def get_latest_approved_vacancy(self, employer_id: int) -> dict[str, Any] | None:
@@ -67,9 +71,11 @@ class SupabaseRepository:
             )
 
         result = await self._run(query)
-        return result.data[0] if result.data else None
+        if not result or not result.data:
+            return None
+        return result.data[0]
 
-    async def approve_vacancy(self, vacancy_id: int, channel_message_id: int | None = None) -> dict[str, Any]:
+    async def approve_vacancy(self, vacancy_id: int, channel_message_id: int | None = None) -> dict[str, Any] | None:
         payload: dict[str, Any] = {"status": VACANCY_STATUS_APPROVED}
         if channel_message_id is not None:
             payload["channel_message_id"] = channel_message_id
@@ -78,9 +84,11 @@ class SupabaseRepository:
             return self.client.table("job_vacancies").update(payload).eq("id", vacancy_id).execute()
 
         result = await self._run(query)
+        if not result or not result.data:
+            return None
         return result.data[0]
 
-    async def reject_vacancy(self, vacancy_id: int, reason: str = "Не прошла модерацию") -> dict[str, Any]:
+    async def reject_vacancy(self, vacancy_id: int, reason: str = "Не прошла модерацию") -> dict[str, Any] | None:
         def query():
             return (
                 self.client.table("job_vacancies")
@@ -90,6 +98,8 @@ class SupabaseRepository:
             )
 
         result = await self._run(query)
+        if not result or not result.data:
+            return None
         return result.data[0]
 
     async def close_vacancy(self, vacancy_id: int, employer_id: int | None = None) -> dict[str, Any] | None:
@@ -102,7 +112,9 @@ class SupabaseRepository:
             return request.execute()
 
         result = await self._run(query)
-        return result.data[0] if result.data else None
+        if not result or not result.data:
+            return None
+        return result.data[0]
 
     async def mark_seeker_found_work(self, user_id: int) -> dict[str, Any] | None:
         def query():
@@ -114,7 +126,9 @@ class SupabaseRepository:
             )
 
         result = await self._run(query)
-        return result.data[0] if result.data else None
+        if not result or not result.data:
+            return None
+        return result.data[0]
 
     async def list_active_vacancies(self, sphere: str | None = None, limit: int = 10) -> list[dict[str, Any]]:
         def query():
@@ -191,7 +205,7 @@ class SupabaseRepository:
             return self.client.table("usage_limits").select("*").eq("user_id", user_id).maybe_single().execute()
 
         result = await self._run(select_query)
-        if not result or not result.data:
+        if not result or not hasattr(result, 'data') or result.data is None:
             payload = {"user_id": user_id, "last_reset_month": current_month, "last_reset_day": current_day}
 
             def insert_query():
@@ -277,7 +291,7 @@ class SupabaseRepository:
         feature: str,
         vacancy_id: int | None = None,
         status: str = PAYMENT_STATUS_PENDING,
-    ) -> dict[str, Any]:
+    ) -> dict[str, Any] | None:
         payload = {
             "user_id": user_id,
             "type": payment_type,
@@ -291,14 +305,17 @@ class SupabaseRepository:
             return self.client.table("payments").insert(payload).execute()
 
         result = await self._run(query)
+        if not result or not result.data:
+            return None
         return result.data[0]
-
 
     async def get_payment(self, payment_id: int) -> dict[str, Any] | None:
         def query():
             return self.client.table("payments").select("*").eq("id", payment_id).maybe_single().execute()
 
         result = await self._run(query)
+        if not result or not result.data:
+            return None
         return result.data
 
     async def reject_payment(self, payment_id: int) -> dict[str, Any] | None:
@@ -306,14 +323,16 @@ class SupabaseRepository:
             return self.client.table("payments").update({"status": "rejected"}).eq("id", payment_id).execute()
 
         result = await self._run(query)
-        return result.data[0] if result.data else None
+        if not result or not result.data:
+            return None
+        return result.data[0]
 
     async def mark_payment_paid(
         self,
         payment_id: int,
         telegram_payment_charge_id: str | None = None,
         provider_payment_charge_id: str | None = None,
-    ) -> dict[str, Any]:
+    ) -> dict[str, Any] | None:
         now = datetime.now(UTC)
         payload = {
             "status": PAYMENT_STATUS_PAID,
@@ -327,6 +346,8 @@ class SupabaseRepository:
             return self.client.table("payments").update(payload).eq("id", payment_id).execute()
 
         result = await self._run(query)
+        if not result or not result.data:
+            return None
         return result.data[0]
 
     async def mark_latest_pending_payment_paid(self, user_id: int, feature: str, vacancy_id: int | None = None) -> dict[str, Any] | None:
@@ -345,7 +366,7 @@ class SupabaseRepository:
             return request.execute()
 
         result = await self._run(select_query)
-        if not result.data:
+        if not result or not result.data:
             return None
         return await self.mark_payment_paid(result.data[0]["id"])
 
@@ -383,7 +404,9 @@ class SupabaseRepository:
             return self.client.table("job_seekers").update({"vip_until": vip_until}).eq("user_id", user_id).execute()
 
         result = await self._run(query)
-        return result.data[0] if result.data else None
+        if not result or not result.data:
+            return None
+        return result.data[0]
 
     async def schedule_unpin(self, vacancy_id: int, channel_message_id: int, unpin_at: datetime) -> None:
         payload = {"vacancy_id": vacancy_id, "channel_message_id": channel_message_id, "unpin_at": unpin_at.isoformat()}
@@ -418,7 +441,7 @@ class SupabaseRepository:
             return self.client.table("referrals").select("referred_id").eq("referred_id", referred_id).maybe_single().execute()
 
         existing = await self._run(select_query)
-        if existing.data:
+        if existing and existing.data:
             return False
 
         payload = {"referrer_id": referrer_id, "referred_id": referred_id}
@@ -441,7 +464,9 @@ class SupabaseRepository:
             return self.client.table("referrals").select("referrer_id").eq("referred_id", user_id).maybe_single().execute()
 
         result = await self._run(query)
-        return int(result.data["referrer_id"]) if result and result.data else None
+        if not result or not result.data:
+            return None
+        return int(result.data["referrer_id"])
 
     async def referral_vip_bonus_available(self, user_id: int, referrals_count: int) -> bool:
         if referrals_count < 10:
@@ -625,3 +650,9 @@ class SupabaseRepository:
             "popular_sphere": popular_sphere,
             "top_employers": top_employers,
         }
+
+    async def count_employer_vacancies(self, employer_id: int) -> int:
+        def query():
+            return self.client.table("job_vacancies").select("id", count="exact").eq("employer_id", employer_id).execute()
+        result = await self._run(query)
+        return int(result.count or 0)
