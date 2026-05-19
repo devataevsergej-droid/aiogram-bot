@@ -16,7 +16,7 @@ def main_menu(user_role: str = None) -> ReplyKeyboardMarkup:
     keyboard = [
         [KeyboardButton(text="🔍 Смотреть вакансии"), KeyboardButton(text="📢 Разместить вакансию")],
         [KeyboardButton(text="👥 Пригласить друга"), KeyboardButton(text="📺 Наш канал")],
-        [KeyboardButton(text="👤 Личный кабинет")]
+        [KeyboardButton(text="👤 Личный кабинет"), KeyboardButton(text="📝 Ищу работу")]
     ]
     
     if user_role:
