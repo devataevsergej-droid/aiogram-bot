@@ -50,9 +50,52 @@ from job_lisakovsk_bot.services.limits import (
 from job_lisakovsk_bot.services.payments import get_feature_request
 from job_lisakovsk_bot.services.referrals import parse_referral_arg, referral_bonus_text, referral_deep_link
 from job_lisakovsk_bot.services.salary import parse_salary_range
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 logger = logging.getLogger(__name__)
 router = Router(name="job")
+
+async def get_user_role(user_id: int, repo: SupabaseRepository) -> str | None:
+    result = await repo.get_user_active_role(user_id)
+    if result:
+        return result["role"]
+    
+    employer_vacancies = await repo.count_employer_vacancies(user_id)
+    if employer_vacancies > 0:
+        await repo.set_user_active_role(user_id, "employer")
+        return "employer"
+    
+    seeker = await repo.get_seeker(user_id)
+    if seeker:
+        await repo.set_user_active_role(user_id, "seeker")
+        return "seeker"
+    
+    return None
+
+
+@router.message(F.text == "🔄 Переключиться на соискателя")
+@router.message(F.text == "🔄 Переключиться на работодателя")
+async def toggle_role(message: Message, repo: SupabaseRepository):
+    current_role = await get_user_role(message.from_user.id, repo)
+    
+    if not current_role:
+        await message.answer(
+            "❌ Сначала заполните анкету соискателя или создайте вакансию.\n\n"
+            "После этого появится возможность переключаться между ролями."
+        )
+        return
+    
+    new_role = "seeker" if current_role == "employer" else "employer"
+    await repo.set_user_active_role(message.from_user.id, new_role)
+    
+    role_name = "Соискатель" if new_role == "seeker" else "Работодатель"
+    
+    await message.answer(
+        f"✅ Вы переключились в режим «{role_name}»\n\n"
+        f"Теперь вам доступны соответствующие функции бота.\n\n"
+        f"Выберите действие в меню ниже 👇",
+        reply_markup=main_menu(user_role=new_role)
+    )
 
 
 class SeekerForm(StatesGroup):
@@ -153,12 +196,18 @@ async def fulfill_paid_feature(
 
 
 @router.message(CommandStart())
-async def start(message: Message, state: FSMContext, command: CommandObject, repo: SupabaseRepository) -> None:
+async def start(message: Message, state: FSMContext, command: CommandObject, repo: SupabaseRepository, settings: Settings) -> None:
     arg = command.args
     referrer_id = parse_referral_arg(arg)
+    
     if referrer_id is not None:
         await repo.register_referral(referrer_id, message.from_user.id)
-        await message.answer("🎉 Реферальная ссылка учтена! Добро пожаловать в «Работа Лисаковск»!", reply_markup=main_menu())
+        await message.answer(
+            "🎉 Реферальная ссылка учтена!\n\n"
+            "Добро пожаловать в «Работа Лисаковск»!\n\n"
+            "Выберите действие в меню ниже 👇",
+            reply_markup=main_menu()
+        )
         return
     
     if arg and arg.startswith("apply_"):
@@ -169,13 +218,20 @@ async def start(message: Message, state: FSMContext, command: CommandObject, rep
     if arg == "resume":
         await seeker_start(message, state)
         return
+    
     if arg == "vacancy":
         await vacancy_start(message, state)
         return
-
+    
+    user_role = await get_user_role(message.from_user.id, repo)
+    
     await message.answer(
-        "👋 Привет! Это бот «Работа Лисаковск». Выберите, что хотите сделать:",
-        reply_markup=main_menu(),
+        "👋 Привет! Это бот «Работа Лисаковск».\n\n"
+        "📌 *Соискатель* — заполните анкету, получайте подходящие вакансии\n\n"
+        "📢 *Работодатель* — разместите вакансию, наймите сотрудников\n\n"
+        "Выберите действие в меню ниже 👇",
+        parse_mode="Markdown",
+        reply_markup=main_menu(user_role),
     )
 
 
@@ -612,6 +668,23 @@ async def invite_friend(message: Message, repo: SupabaseRepository, settings: Se
         parse_mode="Markdown"
     )
 
+@router.message(F.text == "📺 Наш канал")
+async def our_channel(message: Message, settings: Settings):
+    await message.answer(
+        "📢 *Подписывайтесь на наш канал!*\n\n"
+        "Там публикуются все свежие вакансии и полезные новости.\n\n"
+        "Нажмите на кнопку ниже, чтобы перейти 👇",
+        parse_mode="Markdown",
+        reply_markup=InlineKeyboardMarkup(
+            inline_keyboard=[
+                [InlineKeyboardButton(
+                    text="📱 Перейти в канал",
+                    url="https://t.me/lisakovsk_job"
+                )]
+            ]
+        )
+    )
+
 
 @router.message(F.text == "Наши проекты")
 async def projects(message: Message, settings: Settings) -> None:
@@ -626,23 +699,32 @@ async def projects(message: Message, settings: Settings) -> None:
 @router.message(F.text.in_({"Личный кабинет", "/my_stats"}))
 async def my_stats(message: Message, repo: SupabaseRepository) -> None:
     try:
-        employer_vacancies_count = await repo.count_employer_vacancies(message.from_user.id)
-        seeker = await repo.get_seeker(message.from_user.id)
+        user_role = await get_user_role(message.from_user.id, repo)
         
-        if employer_vacancies_count > 0:
+        if user_role == "employer":
             latest_vacancy = await repo.get_latest_approved_vacancy(message.from_user.id)
             stats = await repo.employer_stats(message.from_user.id)
             text = employer_stats_text(stats)
-            await message.answer(text, reply_markup=employer_feedback_keyboard(latest_vacancy["id"] if latest_vacancy else None))
+            await message.answer(
+                text,
+                reply_markup=employer_feedback_keyboard(latest_vacancy["id"] if latest_vacancy else None)
+            )
         else:
             stats = await repo.seeker_stats(message.from_user.id)
             text = seeker_stats_text(stats)
-            if not seeker:
-                text += "\n\n📝 Чтобы включить статистику соискателя, заполните анкету."
+            
+            if not await repo.get_seeker(message.from_user.id):
+                text += "\n\n📝 Чтобы включить статистику соискателя, заполните анкету.\n\n"
+                text += "Нажмите «Ищу работу» в главном меню."
+            
             await message.answer(text, reply_markup=seeker_feedback_keyboard())
+            
     except Exception as e:
         logger.error(f"Error in my_stats: {e}")
-        await message.answer("❌ Ошибка при загрузке статистики. Попробуйте позже.")
+        await message.answer(
+            "❌ Ошибка при загрузке статистики.\n\n"
+            "Попробуйте позже или напишите администратору."
+        )
 
 
 @router.message(Command("admin_stats"))
