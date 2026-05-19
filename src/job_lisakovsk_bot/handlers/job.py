@@ -55,6 +55,10 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 logger = logging.getLogger(__name__)
 router = Router(name="job")
 
+@router.message(Command("test"))
+async def test_command(message: Message):
+    await message.answer("✅ Бот работает, хендлеры зарегистрированы")
+
 async def get_user_role(user_id: int, repo: SupabaseRepository) -> str | None:
     result = await repo.get_user_active_role(user_id)
     if result:
