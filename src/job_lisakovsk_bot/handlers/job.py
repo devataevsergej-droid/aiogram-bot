@@ -9,6 +9,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import CallbackQuery, ForceReply, Message
 
+
 from job_lisakovsk_bot.config import Settings
 from job_lisakovsk_bot.constants import (
     FEATURE_PIN_VACANCY,
