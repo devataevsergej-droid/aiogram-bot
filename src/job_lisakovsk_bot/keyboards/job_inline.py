@@ -126,6 +126,13 @@ def employer_feedback_keyboard(vacancy_id: int | None = None) -> InlineKeyboardM
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
+def feedback_keyboard(latest_vacancy_id: int | None = None) -> InlineKeyboardMarkup:
+    """Deprecated. Use seeker_feedback_keyboard or employer_feedback_keyboard"""
+    if latest_vacancy_id:
+        return employer_feedback_keyboard(latest_vacancy_id)
+    return seeker_feedback_keyboard()
+
+
 def channel_post_keyboard(vacancy_id: int, bot_username: str) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
