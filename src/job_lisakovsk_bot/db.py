@@ -527,42 +527,52 @@ class SupabaseRepository:
             "stars_earned": sum(int(row.get("amount") or 0) for row in paid_rows_result.data),
         }
 
-    async def employer_stats(self, employer_id: int) -> dict[str, int]:
-        def vacancies():
-            return self.client.table("job_vacancies").select("id,sphere,status", count="exact").eq("employer_id", employer_id).execute()
+async def employer_stats(self, employer_id: int) -> dict[str, int]:
+    def vacancies():
+        return self.client.table("job_vacancies").select("id,sphere,status").eq("employer_id", employer_id).execute()
 
-        vacancy_result = await self._run(vacancies)
-        vacancy_ids = [row["id"] for row in vacancy_result.data]
-        main_sphere = vacancy_result.data[0]["sphere"] if vacancy_result.data else None
+    vacancy_result = await self._run(vacancies)
+    vacancy_ids = [row["id"] for row in vacancy_result.data]
+    main_sphere = vacancy_result.data[0]["sphere"] if vacancy_result.data else None
 
-        def notifications():
-            return self.client.table("job_notifications").select("id", count="exact").in_("vacancy_id", vacancy_ids or [-1]).execute()
+    def notifications():
+        return self.client.table("job_notifications").select("id", count="exact").in_("vacancy_id", vacancy_ids or [-1]).execute()
 
-        def likes():
-            return (
-                self.client.table("job_notifications")
-                .select("id", count="exact")
-                .in_("vacancy_id", vacancy_ids or [-1])
-                .eq("reacted", "like")
-                .execute()
-            )
-
-        def seekers_in_sphere():
-            request = self.client.table("job_seekers").select("user_id", count="exact").eq("active", True)
-            if main_sphere:
-                request = request.eq("sphere", main_sphere)
-            return request.execute()
-
-        notifications_result, likes_result, seekers_result = await asyncio.gather(
-            self._run(notifications), self._run(likes), self._run(seekers_in_sphere)
+    def likes():
+        return (
+            self.client.table("job_notifications")
+            .select("id", count="exact")
+            .in_("vacancy_id", vacancy_ids or [-1])
+            .eq("reacted", "like")
+            .execute()
         )
-        return {
-            "vacancies_total": int(vacancy_result.count or 0),
-            "views": int(notifications_result.count or 0),
-            "responses": int(likes_result.count or 0),
-            "closed_vacancies": sum(1 for row in vacancy_result.data if row.get("status") == VACANCY_STATUS_CLOSED),
-            "seekers_in_sphere": int(seekers_result.count or 0),
-        }
+
+    def seekers_in_sphere():
+        request = self.client.table("job_seekers").select("user_id", count="exact").eq("active", True)
+        if main_sphere:
+            request = request.eq("sphere", main_sphere)
+        return request.execute()
+
+    notifications_result, likes_result, seekers_result = await asyncio.gather(
+        self._run(notifications), self._run(likes), self._run(seekers_in_sphere)
+    )
+    
+    # Подсчёт активных и неактивных вакансий
+    active_vacancies = sum(1 for row in vacancy_result.data if row.get("status") == "approved")
+    pending_vacancies = sum(1 for row in vacancy_result.data if row.get("status") == "pending")
+    closed_vacancies = sum(1 for row in vacancy_result.data if row.get("status") == "closed")
+    rejected_vacancies = sum(1 for row in vacancy_result.data if row.get("status") == "rejected")
+    
+    return {
+        "vacancies_total": int(vacancy_result.count or 0),
+        "active_vacancies": active_vacancies,
+        "pending_vacancies": pending_vacancies,
+        "closed_vacancies": closed_vacancies,
+        "rejected_vacancies": rejected_vacancies,
+        "views": int(notifications_result.count or 0),
+        "responses": int(likes_result.count or 0),
+        "seekers_in_sphere": int(seekers_result.count or 0),
+    }
 
     async def seeker_stats(self, user_id: int) -> dict[str, Any]:
         seeker = await self.get_seeker(user_id)
