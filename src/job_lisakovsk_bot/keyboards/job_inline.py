@@ -12,12 +12,16 @@ from job_lisakovsk_bot.constants import (
 )
 
 
-def main_menu(user_role: str = None) -> ReplyKeyboardMarkup:
+def main_menu(user_role: str = None) -> InlineKeyboardMarkup:
     keyboard = [
-        [KeyboardButton(text="🔍 Смотреть вакансии"), KeyboardButton(text="📢 Разместить вакансию")],
-        [KeyboardButton(text="👥 Пригласить друга"), KeyboardButton(text="📺 Наш канал")],
-        [KeyboardButton(text="👤 Личный кабинет"), KeyboardButton(text="📝 Ищу работу")]
+        [InlineKeyboardButton(text="🔍 Смотреть вакансии", callback_data="menu_vacancies")],
+        [InlineKeyboardButton(text="📢 Разместить вакансию", callback_data="menu_vacancy")],
+        [InlineKeyboardButton(text="👥 Пригласить друга", callback_data="menu_invite")],
+        [InlineKeyboardButton(text="📺 Наш канал", callback_data="menu_channel")],
+        [InlineKeyboardButton(text="👤 Личный кабинет", callback_data="menu_profile")],
+        [InlineKeyboardButton(text="📝 Ищу работу", callback_data="menu_resume")],
     ]
+    return InlineKeyboardMarkup(inline_keyboard=keyboard)
     
     if user_role:
         toggle_text = "🔄 Переключиться на соискателя" if user_role == "employer" else "🔄 Переключиться на работодателя"
