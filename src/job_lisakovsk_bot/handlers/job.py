@@ -239,6 +239,15 @@ async def start(message: Message, state: FSMContext, command: CommandObject, rep
         reply_markup=main_menu(user_role),
     )
 
+@router.message(Command("resume"))
+async def cmd_resume(message: Message, state: FSMContext):
+    await seeker_start(message, state)
+
+
+@router.message(Command("vacancy"))
+async def cmd_vacancy(message: Message, state: FSMContext):
+    await vacancy_start(message, state)
+
 
 async def apply_vacancy_start(
     message: Message,
