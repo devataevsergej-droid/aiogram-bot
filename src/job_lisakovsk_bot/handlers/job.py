@@ -722,10 +722,14 @@ async def my_stats(message: Message, repo: SupabaseRepository) -> None:
             text = f"📊 Статистика работодателя:\n\nВакансий: {stats.get('vacancies_total', 0)}\nОткликов: {stats.get('responses', 0)}"
             await message.answer(text)
         else:
-            seeker = await repo.get_seeker(message.from_user.id)
-            if not seeker:
-                await message.answer("📝 У вас нет анкеты соискателя.\n\nНажмите «Разместить вакансию», чтобы стать работодателем, или напишите администратору.")
-                return
+    seeker = await repo.get_seeker(message.from_user.id)
+    if not seeker:
+        await message.answer(
+            "📝 У вас нет анкеты соискателя.\n\n"
+            "Хотите найти работу? Заполните анкету!\n\n"
+            "👉 Нажмите /resume, чтобы начать"
+        )
+        return
             stats = await repo.seeker_stats(message.from_user.id)
             text = f"📊 Статистика соискателя:\n\nПросмотров: {stats.get('views', 0)}\nОткликов: {stats.get('responses', 0)}"
             await message.answer(text)
