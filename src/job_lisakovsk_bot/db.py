@@ -651,6 +651,18 @@ class SupabaseRepository:
             "top_employers": top_employers,
         }
 
+    async def get_user_active_role(self, user_id: int) -> dict | None:
+        def query():
+            return self.client.table("user_active_role").select("*").eq("user_id", user_id).maybe_single().execute()
+        result = await self._run(query)
+        return result.data if result and result.data else None
+
+    async def set_user_active_role(self, user_id: int, role: str) -> None:
+        payload = {"user_id": user_id, "role": role}
+        def query():
+            return self.client.table("user_active_role").upsert(payload, on_conflict="user_id").execute()
+        await self._run(query)
+
     async def count_employer_vacancies(self, employer_id: int) -> int:
         def query():
             return self.client.table("job_vacancies").select("id", count="exact").eq("employer_id", employer_id).execute()
