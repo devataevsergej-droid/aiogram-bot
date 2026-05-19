@@ -45,10 +45,10 @@ def schedules_keyboard(prefix: str) -> InlineKeyboardMarkup:
 def vacancies_keyboard(vacancy_id: int) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="Откликнуться", callback_data=f"vacancy_like:{vacancy_id}")],
+            [InlineKeyboardButton(text="📩 Откликнуться", callback_data=f"vacancy_like:{vacancy_id}")],
             [
-                InlineKeyboardButton(text="Скрыть", callback_data=f"vacancy_dislike:{vacancy_id}"),
-                InlineKeyboardButton(text="Пожаловаться", callback_data=f"vacancy_complain:{vacancy_id}"),
+                InlineKeyboardButton(text="🙈 Скрыть", callback_data=f"vacancy_dislike:{vacancy_id}"),
+                InlineKeyboardButton(text="⚠️ Пожаловаться", callback_data=f"vacancy_complain:{vacancy_id}"),
             ],
         ]
     )
@@ -68,8 +68,8 @@ def moderation_keyboard(vacancy_id: int) -> InlineKeyboardMarkup:
 def vacancy_paid_features_keyboard(vacancy_id: int) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="📌 Закрепить на 3 дня — 30 Stars", callback_data=f"buy:{FEATURE_PIN_VACANCY}:{vacancy_id}")],
-            [InlineKeyboardButton(text="🚀 Срочная рассылка всем — 20 Stars", callback_data=f"buy:{FEATURE_URGENT_BROADCAST}:{vacancy_id}")],
+            [InlineKeyboardButton(text="📌 Закрепить в канале — 300 ₸", callback_data=f"manual:{FEATURE_PIN_VACANCY}:{vacancy_id}")],
+            [InlineKeyboardButton(text="🚀 Срочная рассылка — 200 ₸", callback_data=f"manual:{FEATURE_URGENT_BROADCAST}:{vacancy_id}")],
         ]
     )
 
@@ -77,8 +77,7 @@ def vacancy_paid_features_keyboard(vacancy_id: int) -> InlineKeyboardMarkup:
 def buy_unlimited_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="Купить безлимит — 50 Stars/месяц", callback_data=f"buy:{FEATURE_UNLIMITED_VACANCIES}")],
-            [InlineKeyboardButton(text="Оплатить вручную на Билайн", callback_data=f"manual:{FEATURE_UNLIMITED_VACANCIES}")],
+            [InlineKeyboardButton(text="💳 Купить безлимит — 500 ₸", callback_data=f"manual:{FEATURE_UNLIMITED_VACANCIES}")]
         ]
     )
 
@@ -86,15 +85,14 @@ def buy_unlimited_keyboard() -> InlineKeyboardMarkup:
 def seeker_vip_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="⭐ VIP соискателя — 30 Stars/месяц", callback_data=f"buy:{FEATURE_VIP_SEEKER}")],
-            [InlineKeyboardButton(text="Оплатить вручную на Билайн", callback_data=f"manual:{FEATURE_VIP_SEEKER}")],
+            [InlineKeyboardButton(text="⭐ VIP соискателя — 300 ₸", callback_data=f"manual:{FEATURE_VIP_SEEKER}")]
         ]
     )
 
 
 def manual_payment_keyboard(payment_id: int) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
-        inline_keyboard=[[InlineKeyboardButton(text="Я оплатил", callback_data=f"manual_paid:{payment_id}")]]
+        inline_keyboard=[[InlineKeyboardButton(text="✅ Я оплатил", callback_data=f"manual_paid:{payment_id}")]]
     )
 
 
@@ -109,12 +107,41 @@ def admin_manual_payment_keyboard(payment_id: int) -> InlineKeyboardMarkup:
     )
 
 
-def feedback_keyboard(latest_vacancy_id: int | None = None) -> InlineKeyboardMarkup:
-    rows = [[InlineKeyboardButton(text="✅ Я нашёл работу через бота", callback_data="found_work")]]
-    if latest_vacancy_id is not None:
-        rows.append([InlineKeyboardButton(text="✅ Я закрыл вакансию через бота", callback_data=f"close_vacancy:{latest_vacancy_id}")])
-    rows.append([InlineKeyboardButton(text="⭐ Купить VIP", callback_data=f"buy:{FEATURE_VIP_SEEKER}")])
+def seeker_feedback_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="✅ Я нашёл работу через бота", callback_data="found_work")],
+            [InlineKeyboardButton(text="⭐ Купить VIP — 300 ₸", callback_data=f"manual:{FEATURE_VIP_SEEKER}")],
+        ]
+    )
+
+
+def employer_feedback_keyboard(vacancy_id: int | None = None) -> InlineKeyboardMarkup:
+    rows = []
+    if vacancy_id:
+        rows.append([InlineKeyboardButton(text="✅ Я закрыл вакансию через бота", callback_data=f"close_vacancy:{vacancy_id}")])
+    rows.append([InlineKeyboardButton(text="📌 Закрепить вакансию — 300 ₸", callback_data=f"manual:{FEATURE_PIN_VACANCY}:{vacancy_id}")])
+    rows.append([InlineKeyboardButton(text="🚀 Срочная рассылка — 200 ₸", callback_data=f"manual:{FEATURE_URGENT_BROADCAST}:{vacancy_id}")])
+    rows.append([InlineKeyboardButton(text="♾ Купить безлимит — 500 ₸", callback_data=f"manual:{FEATURE_UNLIMITED_VACANCIES}")])
     return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def channel_post_keyboard(vacancy_id: int, bot_username: str) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="📩 Откликнуться",
+                    url=f"https://t.me/{bot_username}?start=apply_{vacancy_id}"
+                ),
+                InlineKeyboardButton(
+                    text="📤 Поделиться",
+                    switch_inline_query=f"Вакансия: {vacancy_id}"
+                ),
+            ],
+            [InlineKeyboardButton(text="🙈 Скрыть", callback_data=f"hide_post:{vacancy_id}")],
+        ]
+    )
 
 
 def weekly_stats_keyboard(bot_username: str) -> InlineKeyboardMarkup:
