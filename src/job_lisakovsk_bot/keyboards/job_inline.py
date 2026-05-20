@@ -13,12 +13,24 @@ from job_lisakovsk_bot.constants import (
 
 
 def main_menu(user_role: str = None) -> ReplyKeyboardMarkup:
-    keyboard = [
-        [KeyboardButton(text="📢 Разместить вакансию"), KeyboardButton(text="📝 Ищу работу")],
+    # Базовые кнопки для всех
+    base_buttons = [
         [KeyboardButton(text="👥 Пригласить друга"), KeyboardButton(text="🔍 Смотреть вакансии")],
         [KeyboardButton(text="👤 Личный кабинет"), KeyboardButton(text="📺 Наш канал")],
     ]
     
+    # Кнопки в зависимости от роли
+    if user_role == "employer":
+        role_button = [KeyboardButton(text="📢 Разместить вакансию")]
+    elif user_role == "seeker":
+        role_button = [KeyboardButton(text="📝 Ищу работу")]
+    else:
+        # Если роль не определена, показываем обе
+        role_button = [KeyboardButton(text="📢 Разместить вакансию"), KeyboardButton(text="📝 Ищу работу")]
+    
+    keyboard = [role_button] + base_buttons
+    
+    # Кнопка переключения роли (если роль определена)
     if user_role:
         toggle_text = "🔄 Переключиться на соискателя" if user_role == "employer" else "🔄 Переключиться на работодателя"
         keyboard.append([KeyboardButton(text=toggle_text)])
