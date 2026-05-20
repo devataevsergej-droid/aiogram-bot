@@ -777,6 +777,12 @@ async def admin_stats(message: Message, repo: SupabaseRepository, settings: Sett
     await message.answer(admin_stats_text(await repo.admin_stats()))
 
 
+@router.message(Command("menu"))
+async def back_to_menu(message: Message, repo: SupabaseRepository):
+    user_role = await get_user_role(message.from_user.id, repo)
+    await message.answer("📋 Главное меню:", reply_markup=main_menu(user_role))
+
+
 @router.callback_query(F.data == "found_work")
 async def found_work(callback: CallbackQuery, repo: SupabaseRepository) -> None:
     await repo.mark_seeker_found_work(callback.from_user.id)
