@@ -775,7 +775,7 @@ async def my_stats(message: Message, repo: SupabaseRepository) -> None:
         
         user_role = await get_user_role(message.from_user.id, repo)
         role_display = "Работодатель" if user_role == "employer" else "Соискатель" if user_role == "seeker" else "Не определена"
-await message.answer(f"👤 Режим: {role_display}")
+        await message.answer(f"👤 Режим: {role_display}")
         
         if user_role == "employer":
             stats = await repo.employer_stats(message.from_user.id)
