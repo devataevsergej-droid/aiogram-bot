@@ -606,19 +606,24 @@ async def manual_payment_start(callback: CallbackQuery, repo: SupabaseRepository
     )
     
     await callback.message.answer(
-        f"💳 *Оплата функции*\n\n"
-        f"┌─────────────────────┐\n"
-        f"│ 📦 {request.title}\n"
-        f"│ 💰 Сумма: *{request.amount} ₸*\n"
-        f"└─────────────────────┘\n\n"
-        f"📱 *Переведите {request.amount} ₸ на номер:*\n"
-        f"`{settings.beeline_payment_phone}`\n\n"
-        f"✅ *После перевода нажмите кнопку «Я оплатил»*\n"
-        f"Администратор проверит оплату и активирует функцию.\n\n"
-        f"⚠️ В назначении платежа укажите ваш Telegram ID: `{callback.from_user.id}`",
-        reply_markup=manual_payment_keyboard(payment["id"]),
-        parse_mode="Markdown"
-    )
+    f"💳 *Оплата функции*\n\n"
+    f"┌─────────────────────┐\n"
+    f"│ 📦 {request.title}\n"
+    f"│ 💰 Сумма: *{request.amount} ₸*\n"
+    f"└─────────────────────┘\n\n"
+    f"📱 *Переведите {request.amount} ₸ на номер Билайн:*\n"
+    f"`{settings.beeline_payment_phone}`\n\n"
+    f"📲 *Как оплатить:*\n"
+    f"1. Откройте приложение банка\n"
+    f"2. Выберите «Платежи» → «Мобильная связь»\n"
+    f"3. Введите номер: `{settings.beeline_payment_phone}`\n"
+    f"4. Укажите сумму: *{request.amount} ₸*\n"
+    f"5. Подтвердите платеж\n"
+    f"6. Сохраните чек или сделайте скриншот\n\n"
+    f"✅ *После оплаты* нажмите кнопку «Я оплатил» и пришлите чек",
+    reply_markup=manual_payment_keyboard(payment["id"]),
+    parse_mode="Markdown"
+)
     await callback.answer()
 
 
