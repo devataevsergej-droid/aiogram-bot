@@ -94,7 +94,7 @@ async def get_price(self, service: str) -> int | None:
             return int(value)
         return None
 
-    async def approve_vacancy(self, vacancy_id: int, channel_message_id: int | None = None) -> dict[str, Any] | None:
+async def approve_vacancy(self, vacancy_id: int, channel_message_id: int | None = None) -> dict[str, Any] | None:
         payload: dict[str, Any] = {"status": VACANCY_STATUS_APPROVED}
         if channel_message_id is not None:
             payload["channel_message_id"] = channel_message_id
@@ -107,7 +107,7 @@ async def get_price(self, service: str) -> int | None:
             return None
         return result.data[0]
 
-    async def reject_vacancy(self, vacancy_id: int, reason: str = "Не прошла модерацию") -> dict[str, Any] | None:
+async def reject_vacancy(self, vacancy_id: int, reason: str = "Не прошла модерацию") -> dict[str, Any] | None:
         def query():
             return (
                 self.client.table("job_vacancies")
@@ -120,7 +120,7 @@ async def get_price(self, service: str) -> int | None:
         if not result or not result.data:
             return None
         return result.data[0]
-    async def close_vacancy(self, vacancy_id: int, employer_id: int | None = None) -> dict[str, Any] | None:
+async def close_vacancy(self, vacancy_id: int, employer_id: int | None = None) -> dict[str, Any] | None:
         def query():
             request = self.client.table("job_vacancies").update(
                 {"status": VACANCY_STATUS_CLOSED, "closed_via_bot": True}
