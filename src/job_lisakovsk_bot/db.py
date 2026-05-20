@@ -50,15 +50,15 @@ class SupabaseRepository:
         return result.data[0]
 
     async def get_vacancy(self, vacancy_id: int) -> dict[str, Any] | None:
-        def query():
-            return self.client.table("job_vacancies").select("*").eq("id", vacancy_id).maybe_single().execute()
+    def query():
+        return self.client.table("job_vacancies").select("*").eq("id", vacancy_id).maybe_single().execute()
 
-        result = await self._run(query)
-        if not result or not result.data:
-            return None
-        return result.data
+    result = await self._run(query)
+    if not result or not result.data:
+        return None
+    return result.data
 
-    async def get_latest_approved_vacancy(self, employer_id: int) -> dict[str, Any] | None:
+async def get_latest_approved_vacancy(self, employer_id: int) -> dict[str, Any] | None:
     def query():
         return (
             self.client.table("job_vacancies")
