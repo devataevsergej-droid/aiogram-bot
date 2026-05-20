@@ -59,34 +59,49 @@ class SupabaseRepository:
         return result.data
 
     async def get_latest_approved_vacancy(self, employer_id: int) -> dict[str, Any] | None:
-        def query():
-            return (
-                self.client.table("job_vacancies")
-                .select("*")
-                .eq("employer_id", employer_id)
-                .eq("status", VACANCY_STATUS_APPROVED)
-                .order("created_at", desc=True)
-                .limit(1)
-                .execute()
-            )
+    def query():
+        return (
+            self.client.table("job_vacancies")
+            .select("*")
+            .eq("employer_id", employer_id)
+            .eq("status", VACANCY_STATUS_APPROVED)
+            .order("created_at", desc=True)
+            .limit(1)
+            .execute()
+        )
 
-        result = await self._run(query)
-        if not result or not result.data:
-            return None
-        return result.data[0]
+    result = await self._run(query)
+    if not result or not result.data:
+        return None
+    return result.data[0]
 
-    async def approve_vacancy(self, vacancy_id: int, channel_message_id: int | None = None) -> dict[str, Any] | None:
-        payload: dict[str, Any] = {"status": VACANCY_STATUS_APPROVED}
-        if channel_message_id is not None:
-            payload["channel_message_id"] = channel_message_id
 
-        def query():
-            return self.client.table("job_vacancies").update(payload).eq("id", vacancy_id).execute()
+async def get_user_active_role(self, user_id: int) -> dict | None:
+    def query():
+        return self.client.table("user_active_role").select("*").eq("user_id", user_id).maybe_single().execute()
+    result = await self._run(query)
+    return result.data if result and result.data else None
 
-        result = await self._run(query)
-        if not result or not result.data:
-            return None
-        return result.data[0]
+
+async def set_user_active_role(self, user_id: int, role: str) -> None:
+    payload = {"user_id": user_id, "role": role}
+    def query():
+        return self.client.table("user_active_role").upsert(payload, on_conflict="user_id").execute()
+    await self._run(query)
+
+
+async def approve_vacancy(self, vacancy_id: int, channel_message_id: int | None = None) -> dict[str, Any] | None:
+    payload: dict[str, Any] = {"status": VACANCY_STATUS_APPROVED}
+    if channel_message_id is not None:
+        payload["channel_message_id"] = channel_message_id
+
+    def query():
+        return self.client.table("job_vacancies").update(payload).eq("id", vacancy_id).execute()
+
+    result = await self._run(query)
+    if not result or not result.data:
+        return None
+    return result.data[0]
 
     async def reject_vacancy(self, vacancy_id: int, reason: str = "Не прошла модерацию") -> dict[str, Any] | None:
         def query():
