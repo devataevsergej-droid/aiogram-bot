@@ -759,9 +759,6 @@ async def projects(message: Message, settings: Settings) -> None:
         f"🛠 Мастерская: {settings.project_workshop_url}"
     )
 
-@router.message(F.text == "👤 Личный кабинет")
-async def test_lk(message: Message):
-    await message.answer("✅ Хендлер поймал текст 'Личный кабинет'")
 
 @router.message(Command("lk"))
 async def lk_command(message: Message, repo: SupabaseRepository):
