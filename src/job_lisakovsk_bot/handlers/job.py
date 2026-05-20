@@ -604,35 +604,53 @@ async def buy_feature(callback: CallbackQuery, repo: SupabaseRepository, setting
 async def manual_payment_start(callback: CallbackQuery, repo: SupabaseRepository, settings: Settings) -> None:
     _, feature, *rest = callback.data.split(":")
     vacancy_id = int(rest[0]) if rest else None
-    request = get_feature_request(feature, vacancy_id)
+    
+    # Получаем цену из БД
+    if feature == "unlimited_vacancies":
+        price = await repo.get_price("unlimited")
+    elif feature == "vip_seeker":
+        price = await repo.get_price("vip")
+    elif feature == "pin_vacancy":
+        price = await repo.get_price("pin")
+    elif feature == "urgent_broadcast":
+        price = await repo.get_price("broadcast")
+    else:
+        price = 500
+    
+    # Получаем номер телефона из БД
+    phone = await repo.get_setting("beeline_payment_phone")
+    if not phone:
+        phone = settings.beeline_payment_phone
+    
+    request = get_feature_request(feature, price, vacancy_id)
     
     payment = await repo.create_payment(
         user_id=callback.from_user.id,
         payment_type=PAYMENT_TYPE_MANUAL,
-        amount=request.amount,
+        amount=price,
         feature=feature,
         vacancy_id=vacancy_id,
     )
     
     await callback.message.answer(
-    f"💳 *Оплата функции*\n\n"
-    f"┌─────────────────────┐\n"
-    f"│ 📦 {request.title}\n"
-    f"│ 💰 Сумма: *{request.amount} ₸*\n"
-    f"└─────────────────────┘\n\n"
-    f"📱 *Переведите {request.amount} ₸ на номер Билайн:*\n"
-    f"`{settings.beeline_payment_phone}`\n\n"
-    f"📲 *Как оплатить:*\n"
-    f"1. Откройте приложение банка\n"
-    f"2. Выберите «Платежи» → «Мобильная связь»\n"
-    f"3. Введите номер: `{settings.beeline_payment_phone}`\n"
-    f"4. Укажите сумму: *{request.amount} ₸*\n"
-    f"5. Подтвердите платеж\n"
-    f"6. Сохраните чек или сделайте скриншот\n\n"
-    f"✅ *После оплаты* нажмите кнопку «Я оплатил» и пришлите чек",
-    reply_markup=manual_payment_keyboard(payment["id"]),
-    parse_mode="Markdown"
-)
+        f"💳 *Оплата функции*\n\n"
+        f"┌─────────────────────┐\n"
+        f"│ 📦 {request.title}\n"
+        f"│ 💰 Сумма: *{price} ₸*\n"
+        f"└─────────────────────┘\n\n"
+        f"📱 *Переведите {price} ₸ на номер Билайн:*\n"
+        f"`{phone}`\n\n"
+        f"📲 *Как оплатить:*\n"
+        f"1. Откройте приложение банка\n"
+        f"2. Выберите «Платежи» → «Мобильная связь»\n"
+        f"3. Введите номер: `{phone}`\n"
+        f"4. Укажите сумму: *{price} ₸*\n"
+        f"5. Подтвердите платеж\n"
+        f"6. Сохраните чек или сделайте скриншот\n\n"
+        f"✅ *После оплаты* нажмите кнопку «Я оплатил» и пришлите чек",
+        reply_markup=manual_payment_keyboard(payment["id"]),
+        parse_mode="Markdown"
+    )
     await callback.answer()
 
 
