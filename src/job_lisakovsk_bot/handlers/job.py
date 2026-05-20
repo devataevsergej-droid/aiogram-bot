@@ -127,6 +127,10 @@ class VacancyForm(StatesGroup):
 class RejectVacancyForm(StatesGroup):
     reason = State()
 
+class AdminSettingsForm(StatesGroup):
+    waiting_for_price = State()
+    waiting_for_phone = State()
+
 
 async def send_vacancy_notifications(
     *,
@@ -615,14 +619,19 @@ async def manual_payment_start(callback: CallbackQuery, repo: SupabaseRepository
     elif feature == "urgent_broadcast":
         price = await repo.get_price("broadcast")
     else:
-        price = 500
+        price = None
+    
+    if not price:
+        await callback.message.answer("❌ Цена для этой услуги не настроена.\n\nАдмин может установить командой /set_price_unlimited 500")
+        await callback.answer()
+        return
     
     # Получаем номер телефона из БД
     phone = await repo.get_setting("beeline_payment_phone")
     if not phone:
-        phone = settings.beeline_payment_phone
-    
-    request = get_feature_request(feature, price, vacancy_id)
+        await callback.message.answer("❌ Номер телефона для оплаты не настроен.\n\nАдмин может установить командой /set_phone +77051234567")
+        await callback.answer()
+        return
     
     payment = await repo.create_payment(
         user_id=callback.from_user.id,
@@ -635,7 +644,7 @@ async def manual_payment_start(callback: CallbackQuery, repo: SupabaseRepository
     await callback.message.answer(
         f"💳 *Оплата функции*\n\n"
         f"┌─────────────────────┐\n"
-        f"│ 📦 {request.title}\n"
+        f"│ 📦 {feature}\n"
         f"│ 💰 Сумма: *{price} ₸*\n"
         f"└─────────────────────┘\n\n"
         f"📱 *Переведите {price} ₸ на номер Билайн:*\n"
@@ -930,4 +939,143 @@ async def set_price(message: Message, repo: SupabaseRepository, settings: Settin
         return
     
     await message.answer(f"✅ Цена для {service} установлена: {price} ₸")
+
+
+@router.message(Command("set_price_unlimited"))
+async def set_price_unlimited_start(message: Message, state: FSMContext, repo: SupabaseRepository, settings: Settings):
+    if message.chat.id != settings.admin_chat_id:
+        await message.answer("⛔ Доступно только админам")
+        return
+    
+    current = await repo.get_setting("price_unlimited")
+    if not current:
+        current = "не настроено"
+    
+    await state.update_data(setting_key="price_unlimited")
+    await state.set_state(AdminSettingsForm.waiting_for_price)
+    await message.answer(f"💰 Текущая цена безлимита: {current} ₸\n\nВведите новую цену (только число):")
+
+
+@router.message(Command("set_price_vip"))
+async def set_price_vip_start(message: Message, state: FSMContext, repo: SupabaseRepository, settings: Settings):
+    if message.chat.id != settings.admin_chat_id:
+        await message.answer("⛔ Доступно только админам")
+        return
+    
+    current = await repo.get_setting("price_vip")
+    if not current:
+        current = "не настроено"
+    
+    await state.update_data(setting_key="price_vip")
+    await state.set_state(AdminSettingsForm.waiting_for_price)
+    await message.answer(f"💰 Текущая цена VIP: {current} ₸\n\nВведите новую цену (только число):")
+
+@router.message(Command("set_price_pin"))
+async def set_price_pin_start(message: Message, state: FSMContext, repo: SupabaseRepository, settings: Settings):
+    if message.chat.id != settings.admin_chat_id:
+        await message.answer("⛔ Доступно только админам")
+        return
+    
+    current = await repo.get_setting("price_pin_per_day")
+    if not current:
+        current = "не настроено"
+    
+    await state.update_data(setting_key="price_pin_per_day")
+    await state.set_state(AdminSettingsForm.waiting_for_price)
+    await message.answer(f"💰 Текущая цена закрепления (за день): {current} ₸\n\nВведите новую цену (только число):")
+
+@router.message(Command("set_price_broadcast"))
+async def set_price_broadcast_start(message: Message, state: FSMContext, repo: SupabaseRepository, settings: Settings):
+    if message.chat.id != settings.admin_chat_id:
+        await message.answer("⛔ Доступно только админам")
+        return
+    
+    current = await repo.get_setting("price_broadcast")
+    if not current:
+        current = "не настроено"
+    
+    await state.update_data(setting_key="price_broadcast")
+    await state.set_state(AdminSettingsForm.waiting_for_price)
+    await message.answer(f"💰 Текущая цена рассылки: {current} ₸\n\nВведите новую цену (только число):")
+
+@router.message(AdminSettingsForm.waiting_for_price)
+async def save_price(message: Message, state: FSMContext, repo: SupabaseRepository, settings: Settings):
+    if message.chat.id != settings.admin_chat_id:
+        await state.clear()
+        return
+    
+    try:
+        price = int(message.text.strip())
+        data = await state.get_data()
+        key = data.get("setting_key")
+        
+        if key:
+            await repo.set_setting(key, str(price))
+            await message.answer(f"✅ Цена для {key} установлена: {price} ₸")
+        else:
+            await message.answer("❌ Ошибка: неизвестный параметр")
+    except ValueError:
+        await message.answer("❌ Ошибка: нужно ввести число\n\nПопробуйте ещё раз:")
+        return
+    
+    await state.clear()
+
+@router.message(Command("set_phone"))
+async def set_phone_start(message: Message, state: FSMContext, repo: SupabaseRepository, settings: Settings):
+    if message.chat.id != settings.admin_chat_id:
+        await message.answer("⛔ Доступно только админам")
+        return
+    
+    current = await repo.get_setting("beeline_payment_phone")
+    if not current:
+        current = "не настроен"
+    
+    await state.set_state(AdminSettingsForm.waiting_for_phone)
+    await message.answer(f"📱 Текущий номер Билайн: {current}\n\nВведите новый номер в формате +77051234567:")
+
+
+@router.message(AdminSettingsForm.waiting_for_phone)
+async def save_phone(message: Message, state: FSMContext, repo: SupabaseRepository, settings: Settings):
+    if message.chat.id != settings.admin_chat_id:
+        await state.clear()
+        return
+    
+    phone = message.text.strip()
+    await repo.set_setting("beeline_payment_phone", phone)
+    await message.answer(f"✅ Номер Билайн изменён: {phone}")
+    await state.clear()
+
+@router.message(Command("show_settings"))
+async def show_settings(message: Message, repo: SupabaseRepository, settings: Settings):
+    if message.chat.id != settings.admin_chat_id:
+        await message.answer("⛔ Доступно только админам")
+        return
+    
+    unlimited = await repo.get_setting("price_unlimited") or "❌ не настроено"
+    vip = await repo.get_setting("price_vip") or "❌ не настроено"
+    pin = await repo.get_setting("price_pin_per_day") or "❌ не настроено"
+    broadcast = await repo.get_setting("price_broadcast") or "❌ не настроено"
+    phone = await repo.get_setting("beeline_payment_phone") or "❌ не настроен"
+    free_limit = await repo.get_setting("free_vacancy_limit") or "❌ не настроен"
+    free_enabled = await repo.get_setting("free_vacancy_enabled") or "true"
+    
+    await message.answer(
+        f"📊 *Текущие настройки бота*\n\n"
+        f"💰 Безлимит: {unlimited} ₸\n"
+        f"💰 VIP: {vip} ₸\n"
+        f"💰 Закреп (за день): {pin} ₸\n"
+        f"💰 Рассылка: {broadcast} ₸\n"
+        f"📱 Номер Билайн: `{phone}`\n"
+        f"📊 Лимит вакансий: {free_limit}\n"
+        f"🟢 Бесплатные вакансии: {'ВКЛ' if free_enabled == 'true' else 'ВЫКЛ'}\n\n"
+        f"✏️ *Команды для изменения:*\n"
+        f"/set_price_unlimited\n"
+        f"/set_price_vip\n"
+        f"/set_price_pin\n"
+        f"/set_price_broadcast\n"
+        f"/set_phone\n"
+        f"/set_limit\n"
+        f"/enable_free /disable_free",
+        parse_mode="Markdown"
+    )
     
