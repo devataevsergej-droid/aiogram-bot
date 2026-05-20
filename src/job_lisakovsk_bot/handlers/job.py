@@ -838,3 +838,78 @@ async def close_vacancy(callback: CallbackQuery, repo: SupabaseRepository) -> No
 async def hide_post(callback: CallbackQuery) -> None:
     await callback.message.delete()
     await callback.answer("🙈 Пост скрыт", show_alert=False)
+
+
+
+
+@router.message(Command("set_limit"))
+async def set_free_limit(message: Message, repo: SupabaseRepository, settings: Settings):
+    if message.chat.id != settings.admin_chat_id:
+        await message.answer("⛔ Доступно только админам")
+        return
+    
+    args = message.text.split()
+    if len(args) != 2:
+        await message.answer("📝 Использование: /set_limit <число>\nПример: /set_limit 5")
+        return
+    
+    try:
+        limit = int(args[1])
+        await repo.set_setting("free_vacancy_limit", str(limit))
+        await message.answer(f"✅ Бесплатный лимит вакансий установлен: {limit} в месяц")
+    except ValueError:
+        await message.answer("❌ Нужно число")
+
+
+@router.message(Command("enable_free"))
+async def enable_free_vacancies(message: Message, repo: SupabaseRepository, settings: Settings):
+    if message.chat.id != settings.admin_chat_id:
+        await message.answer("⛔ Доступно только админам")
+        return
+    
+    await repo.set_setting("free_vacancy_enabled", "true")
+    await message.answer("✅ Бесплатные вакансии ВКЛЮЧЕНЫ")
+
+
+@router.message(Command("disable_free"))
+async def disable_free_vacancies(message: Message, repo: SupabaseRepository, settings: Settings):
+    if message.chat.id != settings.admin_chat_id:
+        await message.answer("⛔ Доступно только админам")
+        return
+    
+    await repo.set_setting("free_vacancy_enabled", "false")
+    await message.answer("✅ Бесплатные вакансии ОТКЛЮЧЕНЫ. Только платные.")
+
+
+@router.message(Command("set_price"))
+async def set_price(message: Message, repo: SupabaseRepository, settings: Settings):
+    if message.chat.id != settings.admin_chat_id:
+        await message.answer("⛔ Доступно только админам")
+        return
+    
+    args = message.text.split()
+    if len(args) != 3:
+        await message.answer("📝 Использование: /set_price <услуга> <цена>\n\nУслуги: unlimited, pin, broadcast, vip\nПример: /set_price unlimited 500")
+        return
+    
+    service = args[1]
+    try:
+        price = int(args[2])
+    except ValueError:
+        await message.answer("❌ Цена должна быть числом")
+        return
+    
+    if service == "unlimited":
+        await repo.set_setting("price_unlimited", str(price))
+    elif service == "pin":
+        await repo.set_setting("price_pin_per_day", str(price))
+    elif service == "broadcast":
+        await repo.set_setting("price_broadcast", str(price))
+    elif service == "vip":
+        await repo.set_setting("price_vip", str(price))
+    else:
+        await message.answer("❌ Неизвестная услуга. Доступные: unlimited, pin, broadcast, vip")
+        return
+    
+    await message.answer(f"✅ Цена для {service} установлена: {price} ₸")
+    
