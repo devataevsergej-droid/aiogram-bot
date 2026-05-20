@@ -651,6 +651,37 @@ async def manual_payment_paid(callback: CallbackQuery, repo: SupabaseRepository,
     )
     await callback.answer("✅ Заявка отправлена админу на проверку.", show_alert=True)
 
+@router.message(F.photo)
+async def handle_payment_check(message: Message, state: FSMContext, repo: SupabaseRepository, settings: Settings, bot: Bot):
+    data = await state.get_data()
+    payment_id = data.get("pending_payment_id")
+    if not payment_id:
+        return
+    
+    payment = await repo.get_payment(payment_id)
+    if not payment:
+        await message.answer("❌ Платёж не найден. Попробуйте снова.")
+        return
+    
+    # Отправляем чек админу
+    caption = (
+        f"🧾 *Новый чек на подтверждение*\n\n"
+        f"💰 Сумма: {payment['amount']} ₸\n"
+        f"📦 Услуга: {payment['feature']}\n"
+        f"👤 Пользователь: {payment['user_id']}\n"
+        f"🆔 Платёж #{payment_id}"
+    )
+    
+    await bot.send_photo(
+        settings.admin_chat_id,
+        message.photo[-1].file_id,
+        caption=caption,
+        reply_markup=admin_manual_payment_keyboard(payment_id)
+    )
+    
+    await message.answer("✅ Чек отправлен администратору на проверку. Ожидайте подтверждения.")
+    await state.update_data(pending_payment_id=None)
+
 
 @router.callback_query(F.data.startswith("manual_confirm:"))
 async def manual_payment_confirm(callback: CallbackQuery, repo: SupabaseRepository, settings: Settings, bot: Bot) -> None:
