@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from supabase import Client, create_client
@@ -44,65 +44,49 @@ class SupabaseRepository:
 
     async def create_vacancy(self, payload: dict[str, Any]) -> dict[str, Any]:
         def query():
-        return self.client.table("job_vacancies").insert(payload).execute()
+            return self.client.table("job_vacancies").insert(payload).execute()
 
-    result = await self._run(query)
-    return result.data[0]
+        result = await self._run(query)
+        return result.data[0]
 
+    async def get_vacancy(self, vacancy_id: int) -> dict[str, Any] | None:
+        def query():
+            return self.client.table("job_vacancies").select("*").eq("id", vacancy_id).maybe_single().execute()
 
-async def get_vacancy(self, vacancy_id: int) -> dict[str, Any] | None:
-    def query():
-        return self.client.table("job_vacancies").select("*").eq("id", vacancy_id).maybe_single().execute()
+        result = await self._run(query)
+        if not result or not result.data:
+            return None
+        return result.data
 
-    result = await self._run(query)
-    if not result or not result.data:
-        return None
-    return result.data
+    async def get_latest_approved_vacancy(self, employer_id: int) -> dict[str, Any] | None:
+        def query():
+            return (
+                self.client.table("job_vacancies")
+                .select("*")
+                .eq("employer_id", employer_id)
+                .eq("status", VACANCY_STATUS_APPROVED)
+                .order("created_at", desc=True)
+                .limit(1)
+                .execute()
+            )
 
-async def get_latest_approved_vacancy(self, employer_id: int) -> dict[str, Any] | None:
-    def query():
-        return (
-            self.client.table("job_vacancies")
-            .select("*")
-            .eq("employer_id", employer_id)
-            .eq("status", VACANCY_STATUS_APPROVED)
-            .order("created_at", desc=True)
-            .limit(1)
-            .execute()
-        )
+        result = await self._run(query)
+        if not result or not result.data:
+            return None
+        return result.data[0]
 
-    result = await self._run(query)
-    if not result or not result.data:
-        return None
-    return result.data[0]
+    async def approve_vacancy(self, vacancy_id: int, channel_message_id: int | None = None) -> dict[str, Any] | None:
+        payload: dict[str, Any] = {"status": VACANCY_STATUS_APPROVED}
+        if channel_message_id is not None:
+            payload["channel_message_id"] = channel_message_id
 
+        def query():
+            return self.client.table("job_vacancies").update(payload).eq("id", vacancy_id).execute()
 
-async def get_user_active_role(self, user_id: int) -> dict | None:
-    def query():
-        return self.client.table("user_active_role").select("*").eq("user_id", user_id).maybe_single().execute()
-    result = await self._run(query)
-    return result.data if result and result.data else None
-
-
-async def set_user_active_role(self, user_id: int, role: str) -> None:
-    payload = {"user_id": user_id, "role": role}
-    def query():
-        return self.client.table("user_active_role").upsert(payload, on_conflict="user_id").execute()
-    await self._run(query)
-
-
-async def approve_vacancy(self, vacancy_id: int, channel_message_id: int | None = None) -> dict[str, Any] | None:
-    payload: dict[str, Any] = {"status": VACANCY_STATUS_APPROVED}
-    if channel_message_id is not None:
-        payload["channel_message_id"] = channel_message_id
-
-    def query():
-        return self.client.table("job_vacancies").update(payload).eq("id", vacancy_id).execute()
-
-    result = await self._run(query)
-    if not result or not result.data:
-        return None
-    return result.data[0]
+        result = await self._run(query)
+        if not result or not result.data:
+            return None
+        return result.data[0]
 
     async def reject_vacancy(self, vacancy_id: int, reason: str = "Не прошла модерацию") -> dict[str, Any] | None:
         def query():
@@ -543,51 +527,51 @@ async def approve_vacancy(self, vacancy_id: int, channel_message_id: int | None 
             "stars_earned": sum(int(row.get("amount") or 0) for row in paid_rows_result.data),
         }
 
-async def employer_stats(self, employer_id: int) -> dict[str, int]:
-    def vacancies():
-        return self.client.table("job_vacancies").select("id,sphere,status").eq("employer_id", employer_id).execute()
+    async def employer_stats(self, employer_id: int) -> dict[str, int]:
+        def vacancies():
+            return self.client.table("job_vacancies").select("id,sphere,status").eq("employer_id", employer_id).execute()
 
-    vacancy_result = await self._run(vacancies)
-    vacancy_ids = [row["id"] for row in vacancy_result.data]
-    main_sphere = vacancy_result.data[0]["sphere"] if vacancy_result.data else None
+        vacancy_result = await self._run(vacancies)
+        vacancy_ids = [row["id"] for row in vacancy_result.data]
+        main_sphere = vacancy_result.data[0]["sphere"] if vacancy_result.data else None
 
-    def notifications():
-        return self.client.table("job_notifications").select("id", count="exact").in_("vacancy_id", vacancy_ids or [-1]).execute()
+        def notifications():
+            return self.client.table("job_notifications").select("id", count="exact").in_("vacancy_id", vacancy_ids or [-1]).execute()
 
-    def likes():
-        return (
-            self.client.table("job_notifications")
-            .select("id", count="exact")
-            .in_("vacancy_id", vacancy_ids or [-1])
-            .eq("reacted", "like")
-            .execute()
+        def likes():
+            return (
+                self.client.table("job_notifications")
+                .select("id", count="exact")
+                .in_("vacancy_id", vacancy_ids or [-1])
+                .eq("reacted", "like")
+                .execute()
+            )
+
+        def seekers_in_sphere():
+            request = self.client.table("job_seekers").select("user_id", count="exact").eq("active", True)
+            if main_sphere:
+                request = request.eq("sphere", main_sphere)
+            return request.execute()
+
+        notifications_result, likes_result, seekers_result = await asyncio.gather(
+            self._run(notifications), self._run(likes), self._run(seekers_in_sphere)
         )
-
-    def seekers_in_sphere():
-        request = self.client.table("job_seekers").select("user_id", count="exact").eq("active", True)
-        if main_sphere:
-            request = request.eq("sphere", main_sphere)
-        return request.execute()
-
-    notifications_result, likes_result, seekers_result = await asyncio.gather(
-        self._run(notifications), self._run(likes), self._run(seekers_in_sphere)
-    )
-    
-    active_vacancies = sum(1 for row in vacancy_result.data if row.get("status") == "approved")
-    pending_vacancies = sum(1 for row in vacancy_result.data if row.get("status") == "pending")
-    closed_vacancies = sum(1 for row in vacancy_result.data if row.get("status") == "closed")
-    rejected_vacancies = sum(1 for row in vacancy_result.data if row.get("status") == "rejected")
-    
-    return {
-        "vacancies_total": int(vacancy_result.count or 0),
-        "active_vacancies": active_vacancies,
-        "pending_vacancies": pending_vacancies,
-        "closed_vacancies": closed_vacancies,
-        "rejected_vacancies": rejected_vacancies,
-        "views": int(notifications_result.count or 0),
-        "responses": int(likes_result.count or 0),
-        "seekers_in_sphere": int(seekers_result.count or 0),
-    }
+        
+        active_vacancies = sum(1 for row in vacancy_result.data if row.get("status") == "approved")
+        pending_vacancies = sum(1 for row in vacancy_result.data if row.get("status") == "pending")
+        closed_vacancies = sum(1 for row in vacancy_result.data if row.get("status") == "closed")
+        rejected_vacancies = sum(1 for row in vacancy_result.data if row.get("status") == "rejected")
+        
+        return {
+            "vacancies_total": int(vacancy_result.count or 0),
+            "active_vacancies": active_vacancies,
+            "pending_vacancies": pending_vacancies,
+            "closed_vacancies": closed_vacancies,
+            "rejected_vacancies": rejected_vacancies,
+            "views": int(notifications_result.count or 0),
+            "responses": int(likes_result.count or 0),
+            "seekers_in_sphere": int(seekers_result.count or 0),
+        }
 
     async def seeker_stats(self, user_id: int) -> dict[str, Any]:
         seeker = await self.get_seeker(user_id)
@@ -676,6 +660,12 @@ async def employer_stats(self, employer_id: int) -> dict[str, int]:
             "top_employers": top_employers,
         }
 
+    async def count_employer_vacancies(self, employer_id: int) -> int:
+        def query():
+            return self.client.table("job_vacancies").select("id", count="exact").eq("employer_id", employer_id).execute()
+        result = await self._run(query)
+        return int(result.count or 0)
+
     async def get_user_active_role(self, user_id: int) -> dict | None:
         def query():
             return self.client.table("user_active_role").select("*").eq("user_id", user_id).maybe_single().execute()
@@ -687,9 +677,3 @@ async def employer_stats(self, employer_id: int) -> dict[str, int]:
         def query():
             return self.client.table("user_active_role").upsert(payload, on_conflict="user_id").execute()
         await self._run(query)
-
-    async def count_employer_vacancies(self, employer_id: int) -> int:
-        def query():
-            return self.client.table("job_vacancies").select("id", count="exact").eq("employer_id", employer_id).execute()
-        result = await self._run(query)
-        return int(result.count or 0)
