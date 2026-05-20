@@ -87,8 +87,8 @@ async def set_setting(self, key: str, value: str) -> None:
         def query():
             return self.client.table("bot_settings").upsert({"key": key, "value": value}, on_conflict="key").execute()
         await self._run(query)
-
-    async def get_price(self, service: str) -> int | None:
+    
+async def get_price(self, service: str) -> int | None:
         value = await self.get_setting(f"price_{service}")
         if value and value.isdigit():
             return int(value)
