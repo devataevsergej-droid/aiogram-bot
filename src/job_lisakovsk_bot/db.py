@@ -43,7 +43,7 @@ class SupabaseRepository:
         return result.data
 
     async def create_vacancy(self, payload: dict[str, Any]) -> dict[str, Any]:
-    def query():
+        def query():
         return self.client.table("job_vacancies").insert(payload).execute()
 
     result = await self._run(query)
