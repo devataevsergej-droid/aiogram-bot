@@ -59,7 +59,7 @@ class SupabaseRepository:
         return result.data
 
     async def get_latest_approved_vacancy(self, employer_id: int) -> dict[str, Any] | None:
-    def query():
+        def query():
         return (
             self.client.table("job_vacancies")
             .select("*")
