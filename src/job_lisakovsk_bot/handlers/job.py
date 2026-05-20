@@ -61,21 +61,26 @@ async def test_command(message: Message):
     await message.answer("✅ Бот работает, хендлеры зарегистрированы")
 
 async def get_user_role(user_id: int, repo: SupabaseRepository) -> str | None:
+    # Сначала проверяем сохранённую роль
     result = await repo.get_user_active_role(user_id)
     if result:
         return result["role"]
     
+    # Если нет сохранённой роли, определяем по данным
     employer_vacancies = await repo.count_employer_vacancies(user_id)
-    if employer_vacancies > 0:
-        await repo.set_user_active_role(user_id, "employer")
-        return "employer"
-    
     seeker = await repo.get_seeker(user_id)
-    if seeker:
-        await repo.set_user_active_role(user_id, "seeker")
-        return "seeker"
     
-    return None
+    # Приоритет: если есть вакансии → работодатель, иначе если есть анкета → соискатель
+    if employer_vacancies > 0:
+        role = "employer"
+    elif seeker:
+        role = "seeker"
+    else:
+        return None
+    
+    # Сохраняем определённую роль
+    await repo.set_user_active_role(user_id, role)
+    return role
 
 
 @router.message(F.text == "🔄 Переключиться на соискателя")
