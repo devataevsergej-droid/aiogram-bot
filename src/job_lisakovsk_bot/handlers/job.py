@@ -730,10 +730,19 @@ async def my_stats(message: Message, repo: SupabaseRepository) -> None:
         await message.answer(f"Роль: {user_role}")
         
         if user_role == "employer":
-            latest_vacancy = await repo.get_latest_approved_vacancy(message.from_user.id)
             stats = await repo.employer_stats(message.from_user.id)
-            text = f"📊 Статистика работодателя:\n\nВакансий: {stats.get('vacancies_total', 0)}\nОткликов: {stats.get('responses', 0)}"
-            await message.answer(text)
+            text = (
+                f"📊 *Статистика работодателя*\n\n"
+                f"📌 Всего вакансий: {stats.get('vacancies_total', 0)}\n"
+                f"✅ Активные: {stats.get('active_vacancies', 0)}\n"
+                f"⏳ На модерации: {stats.get('pending_vacancies', 0)}\n"
+                f"🔒 Закрытые: {stats.get('closed_vacancies', 0)}\n"
+                f"❌ Отклонённые: {stats.get('rejected_vacancies', 0)}\n\n"
+                f"👁️ Просмотров: {stats.get('views', 0)}\n"
+                f"📩 Откликов: {stats.get('responses', 0)}\n"
+                f"👥 Соискателей в вашей сфере: {stats.get('seekers_in_sphere', 0)}"
+            )
+            await message.answer(text, parse_mode="Markdown")
         else:
             seeker = await repo.get_seeker(message.from_user.id)
             if not seeker:
