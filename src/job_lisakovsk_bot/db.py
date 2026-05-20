@@ -557,7 +557,6 @@ async def employer_stats(self, employer_id: int) -> dict[str, int]:
         self._run(notifications), self._run(likes), self._run(seekers_in_sphere)
     )
     
-    # Подсчёт активных и неактивных вакансий
     active_vacancies = sum(1 for row in vacancy_result.data if row.get("status") == "approved")
     pending_vacancies = sum(1 for row in vacancy_result.data if row.get("status") == "pending")
     closed_vacancies = sum(1 for row in vacancy_result.data if row.get("status") == "closed")
