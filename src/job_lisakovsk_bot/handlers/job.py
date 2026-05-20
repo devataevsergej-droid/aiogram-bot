@@ -308,13 +308,17 @@ async def seeker_schedule(callback: CallbackQuery, state: FSMContext) -> None:
 
 @router.message(SeekerForm.salary)
 async def seeker_salary(message: Message, state: FSMContext) -> None:
-    try:
-        salary_min, salary_max = parse_salary_range(message.text or "")
-    except ValueError:
-        await message.answer("❌ Не понял сумму. Напишите диапазон вроде 200000-300000 или «Не важно».")
-        return
-
-    await state.update_data(salary_min=salary_min, salary_max=salary_max)
+    text = message.text or ""
+    if text.lower() in ["не важно", "договорная", "договор"]:
+        await state.update_data(salary_min=None, salary_max=None, salary_text="Договорная")
+    else:
+        try:
+            salary_min, salary_max = parse_salary_range(text)
+            await state.update_data(salary_min=salary_min, salary_max=salary_max, salary_text=f"{salary_min}-{salary_max} ₸")
+        except ValueError:
+            await message.answer("❌ Не понял сумму. Напишите диапазон вроде 200000-300000, «Не важно» или «Договорная».")
+            return
+    
     await state.set_state(SeekerForm.about)
     await message.answer("📝 Коротко о себе одним предложением. Например: «Сварщик с опытом 5 лет, есть свой инструмент».")
 
