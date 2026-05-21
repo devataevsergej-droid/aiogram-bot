@@ -501,6 +501,7 @@ async def approve_vacancy(callback: CallbackQuery, repo: SupabaseRepository, set
         vacancy_public_text(vacancy, settings.bot_username),
         reply_markup=channel_post_keyboard(vacancy_id, settings.bot_username)
     )
+    
     vacancy = await repo.approve_vacancy(vacancy_id, channel_message.message_id)
     await bot.send_message(
         vacancy["employer_id"],
@@ -919,6 +920,11 @@ async def admin_stats(message: Message, repo: SupabaseRepository, settings: Sett
         await message.answer("⛔ Команда доступна только в админ-чате.")
         return
     await message.answer(admin_stats_text(await repo.admin_stats()))
+
+@router.callback_query(F.data.startswith("hide_post:"))
+async def hide_post(callback: CallbackQuery) -> None:
+    await callback.message.delete()
+    await callback.answer("🙈 Пост скрыт", show_alert=False)
 
 
 @router.message(Command("menu"))
