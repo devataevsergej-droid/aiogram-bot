@@ -160,8 +160,8 @@ def channel_post_keyboard(vacancy_id: int, bot_username: str) -> InlineKeyboardM
                     url=f"https://t.me/{bot_username}?start=apply_{vacancy_id}"
                 ),
                 InlineKeyboardButton(
-                    text="📤 Поделиться",
-                    switch_inline_query=f"Вакансия: {vacancy_id}"
+                    text="📤 Поделиться ботом",
+                    url=f"https://t.me/{bot_username}"
                 ),
             ],
             [InlineKeyboardButton(text="🙈 Скрыть", callback_data=f"hide_post:{vacancy_id}")],
