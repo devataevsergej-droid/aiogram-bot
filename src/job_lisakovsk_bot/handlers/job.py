@@ -655,24 +655,24 @@ async def manual_payment_start(callback: CallbackQuery, repo: SupabaseRepository
     )
     
     await callback.message.answer(
-        f"💳 *Оплата функции*\n\n"
+        f"💳 Оплата функции\n\n"
         f"┌─────────────────────┐\n"
-        f"│ 📦 {feature}\n"
-        f"│ 💰 Сумма: *{price} ₸*\n"
+        f"│ 📦 {request.title}\n"
+        f"│ 💰 Сумма: {price} ₸\n"
         f"└─────────────────────┘\n\n"
-        f"📱 *Переведите {price} ₸ на номер Билайн:*\n"
-        f"`{phone}`\n\n"
-        f"📲 *Как оплатить:*\n"
+        f"📱 Переведите {price} ₸ на номер Билайн:\n"
+        f"{phone}\n\n"
+        f"📲 Как оплатить:\n"
         f"1. Откройте приложение банка\n"
         f"2. Выберите «Платежи» → «Мобильная связь»\n"
-        f"3. Введите номер: `{phone}`\n"
-        f"4. Укажите сумму: *{price} ₸*\n"
+        f"3. Введите номер: {phone}\n"
+        f"4. Укажите сумму: {price} ₸\n"
         f"5. Подтвердите платеж\n"
         f"6. Сохраните чек или сделайте скриншот\n\n"
-        f"✅ *После оплаты* нажмите кнопку «Я оплатил» и пришлите чек",
-        reply_markup=manual_payment_keyboard(payment["id"]),
-        parse_mode="Markdown"
+        f"✅ После оплаты нажмите кнопку «Я оплатил» и пришлите чек",
+        reply_markup=manual_payment_keyboard(payment["id"])
     )
+    
     await callback.answer()
 
 
