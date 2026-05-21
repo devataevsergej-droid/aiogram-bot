@@ -83,6 +83,27 @@ async def get_setting(self, key: str) -> str | None:
             return None
         return result.data["value"]
 
+async def get_setting(self, key: str) -> str | None:
+        def query():
+            return self.client.table("bot_settings").select("value").eq("key", key).maybe_single().execute()
+        result = await self._run(query)
+        if not result or not result.data:
+            return None
+        return result.data["value"]
+
+async def get_user_active_role(self, user_id: int) -> dict | None:
+        def query():
+            return self.client.table("user_active_role").select("*").eq("user_id", user_id).maybe_single().execute()
+        result = await self._run(query)
+        return result.data if result and result.data else None
+
+async def list_due_unpins(self) -> list[dict[str, Any]]:
+        now = datetime.now(UTC).isoformat()
+        def query():
+            return self.client.table("scheduled_unpins").select("*").eq("status", "scheduled").lte("unpin_at", now).execute()
+        result = await self._run(query)
+        return result.data
+
 async def set_setting(self, key: str, value: str) -> None:
         def query():
             return self.client.table("bot_settings").upsert({"key": key, "value": value}, on_conflict="key").execute()
