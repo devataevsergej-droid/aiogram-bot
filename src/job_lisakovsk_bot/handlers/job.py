@@ -451,12 +451,18 @@ async def vacancy_description(
         decision = can_create_vacancy(int(usage.get("vacancies_this_month") or 0), referrals, has_unlimited)
         
         if not decision.allowed:
-            await message.answer(
-                f"⚠️ Бесплатный лимит вакансий на месяц исчерпан ({decision.used}/{decision.limit}).\n\n"
-                f"💳 Можно купить безлимит за 500 ₸ или пригласить друга.",
-                reply_markup=buy_unlimited_keyboard(),
-            )
-            return
+    # Сохраняем текущее состояние FSM перед оплатой
+    current_data = await state.get_data()
+    await state.update_data(pending_vacancy_data=current_data)
+    await state.set_state(None)  # Временно сбрасываем FSM
+    
+    await message.answer(
+        f"⚠️ Бесплатный лимит вакансий на месяц исчерпан ({decision.used}/{decision.limit}).\n\n"
+        f"💳 Купить безлимит за {await repo.get_price('unlimited')} ₸\n"
+        f"👥 Или пригласите друга — получите бонусы! /invite",
+        reply_markup=buy_unlimited_keyboard()
+    )
+    return
 
         data = await state.get_data()
         referred_by = await repo.get_referrer_for_user(message.from_user.id)
@@ -815,14 +821,30 @@ async def manual_payment_confirm(callback: CallbackQuery, repo: SupabaseReposito
         return
     
     result = await fulfill_paid_feature(
-        repo=repo,
-        bot=bot,
-        settings=settings,
-        user_id=payment["user_id"],
-        feature=payment["feature"],
-        vacancy_id=payment.get("vacancy_id"),
-    )
-    await bot.send_message(payment["user_id"], result)
+    repo=repo,
+    bot=bot,
+    settings=settings,
+    user_id=payment["user_id"],
+    feature=payment["feature"],
+    vacancy_id=payment.get("vacancy_id"),
+)
+await bot.send_message(payment["user_id"], result)
+
+# Если оплачен безлимит — проверяем, было ли сохранённое состояние
+if payment["feature"] == "unlimited_vacancies":
+    # Получаем сохранённые данные
+    user_state = await state.storage.get_data(bot.id, payment["user_id"])
+    pending_data = user_state.get("pending_vacancy_data")
+    
+    if pending_data:
+        # Восстанавливаем FSM
+        await state.storage.set_data(bot.id, payment["user_id"], pending_data)
+        await state.set_state(VacancyForm.description)
+        await bot.send_message(
+            payment["user_id"],
+            "✅ Безлимит активирован! Продолжите создание вакансии, введите описание:",
+            reply_markup=main_menu()
+        )
     await callback.message.edit_text(f"✅ Ручная оплата #{payment_id} подтверждена.\n{result}")
     await callback.answer()
 
