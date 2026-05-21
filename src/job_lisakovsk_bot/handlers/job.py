@@ -1141,6 +1141,7 @@ async def show_settings(message: Message, repo: SupabaseRepository, settings: Se
     free_limit = await repo.get_setting("free_vacancy_limit") or "❌ не настроен"
     free_enabled = await repo.get_setting("free_vacancy_enabled") or "true"
     
+    
     await message.answer(
         f"📊 *Текущие настройки бота*\n\n"
         f"💰 Безлимит: {unlimited} ₸\n"
