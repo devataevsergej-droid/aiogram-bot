@@ -131,6 +131,9 @@ class AdminSettingsForm(StatesGroup):
     waiting_for_price = State()
     waiting_for_phone = State()
 
+class PinDaysForm(StatesGroup):
+    waiting_for_days = State()
+
 
 async def send_vacancy_notifications(
     *,
@@ -189,9 +192,13 @@ async def fulfill_paid_feature(
     if feature == FEATURE_PIN_VACANCY:
         if not vacancy.get("channel_message_id"):
             return "❌ Оплата получена, но вакансия ещё не опубликована в канале."
+        
+        # Получаем количество дней из переданных параметров
+        pin_days = kwargs.get("pin_days", 3)
+        
         await bot.pin_chat_message(settings.channel_id, vacancy["channel_message_id"], disable_notification=True)
-        await repo.schedule_unpin(vacancy_id, vacancy["channel_message_id"], datetime.now(UTC) + timedelta(days=3))
-        return "📌 Вакансия закреплена в канале на 3 дня."
+        await repo.schedule_unpin(vacancy_id, vacancy["channel_message_id"], datetime.now(UTC) + timedelta(days=pin_days))
+        return f"📌 Вакансия закреплена в канале на {pin_days} дней."
 
     if feature == FEATURE_URGENT_BROADCAST:
         seekers = await repo.list_all_active_seekers()
@@ -597,12 +604,17 @@ async def buy_feature(callback: CallbackQuery, repo: SupabaseRepository, setting
                 await callback.answer()
                 return
         
+        # Для закрепа нужен выбор количества дней
+        if feature == FEATURE_PIN_VACANCY and vacancy_id:
+            from job_lisakovsk_bot.handlers.job import PinDaysForm
+            await callback.message.answer("📌 Выберите количество дней (минимум 3):")
+            return
+        
         await manual_payment_start(callback, repo, settings)
         
     except Exception as e:
         logger.error(f"Error in buy_feature: {e}")
         await callback.answer("❌ Ошибка. Попробуйте позже.", show_alert=True)
-
 
 @router.callback_query(F.data.startswith("manual:"))
 async def manual_payment_start(callback: CallbackQuery, repo: SupabaseRepository, settings: Settings) -> None:
@@ -663,6 +675,7 @@ async def manual_payment_start(callback: CallbackQuery, repo: SupabaseRepository
     await callback.answer()
 
 
+
 @router.callback_query(F.data.startswith("manual_paid:"))
 async def manual_payment_paid(callback: CallbackQuery, state: FSMContext, repo: SupabaseRepository, settings: Settings, bot: Bot):
     payment_id = int(callback.data.split(":", 1)[1])
@@ -679,6 +692,75 @@ async def manual_payment_paid(callback: CallbackQuery, state: FSMContext, repo: 
         parse_mode="Markdown"
     )
     await callback.answer()
+
+@router.callback_query(F.data.startswith("manual:pin_vacancy:"))
+async def pin_vacancy_start(callback: CallbackQuery, state: FSMContext, repo: SupabaseRepository):
+    vacancy_id = int(callback.data.split(":")[2])
+    await state.update_data(pin_vacancy_id=vacancy_id)
+    await state.set_state(PinDaysForm.waiting_for_days)
+    await callback.message.answer(
+        f"📌 *Закреп вакансии*\n\n"
+        f"Укажите количество дней (минимум 3):\n\n"
+        f"💰 Цена за день: {await repo.get_price('pin')} ₸\n"
+        f"💳 Итого: {await repo.get_price('pin')} × <дни> = *{await repo.get_price('pin')} × N ₸*",
+        parse_mode="Markdown"
+    )
+    await callback.answer()
+
+
+@router.message(PinDaysForm.waiting_for_days)
+async def pin_vacancy_days(message: Message, state: FSMContext, repo: SupabaseRepository, settings: Settings, bot: Bot):
+    try:
+        days = int(message.text.strip())
+        if days < 3:
+            await message.answer("❌ Минимальное количество дней — 3. Укажите число 3 или больше:")
+            return
+        
+        data = await state.get_data()
+        vacancy_id = data.get("pin_vacancy_id")
+        price_per_day = await repo.get_price("pin")
+        if not price_per_day:
+            await message.answer("❌ Цена закрепления не настроена. Обратитесь к администратору.")
+            await state.clear()
+            return
+        
+        total_price = price_per_day * days
+        
+        payment = await repo.create_payment(
+            user_id=message.from_user.id,
+            payment_type=PAYMENT_TYPE_MANUAL,
+            amount=total_price,
+            feature="pin_vacancy",
+            vacancy_id=vacancy_id,
+        )
+        
+        await state.update_data(pin_days=days)
+        
+        phone = await repo.get_setting("beeline_payment_phone")
+        if not phone:
+            await message.answer("❌ Номер телефона для оплаты не настроен. Обратитесь к администратору.")
+            await state.clear()
+            return
+        
+        await message.answer(
+            f"💳 *Оплата закрепления вакансии*\n\n"
+            f"┌─────────────────────┐\n"
+            f"│ 📌 Закреп в канале\n"
+            f"│ 📅 Количество дней: {days}\n"
+            f"│ 💰 Цена за день: {price_per_day} ₸\n"
+            f"│ 💳 Итого: *{total_price} ₸*\n"
+            f"└─────────────────────┘\n\n"
+            f"📱 *Переведите {total_price} ₸ на номер Билайн:*\n"
+            f"`{phone}`\n\n"
+            f"✅ *После оплаты* нажмите кнопку «Я оплатил» и пришлите чек",
+            reply_markup=manual_payment_keyboard(payment["id"]),
+            parse_mode="Markdown"
+        )
+        await state.clear()
+        
+    except ValueError:
+        await message.answer("❌ Ошибка: нужно ввести число. Укажите количество дней (3 или больше):")
+
 
 @router.message(F.photo)
 async def handle_payment_check(message: Message, state: FSMContext, repo: SupabaseRepository, settings: Settings, bot: Bot):
