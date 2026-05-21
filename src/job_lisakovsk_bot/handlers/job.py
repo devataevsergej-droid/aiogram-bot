@@ -451,18 +451,18 @@ async def vacancy_description(
         decision = can_create_vacancy(int(usage.get("vacancies_this_month") or 0), referrals, has_unlimited)
         
         if not decision.allowed:
-    # Сохраняем текущее состояние FSM перед оплатой
-    current_data = await state.get_data()
-    await state.update_data(pending_vacancy_data=current_data)
-    await state.set_state(None)  # Временно сбрасываем FSM
-    
-    await message.answer(
-        f"⚠️ Бесплатный лимит вакансий на месяц исчерпан ({decision.used}/{decision.limit}).\n\n"
-        f"💳 Купить безлимит за {await repo.get_price('unlimited')} ₸\n"
-        f"👥 Или пригласите друга — получите бонусы! /invite",
-        reply_markup=buy_unlimited_keyboard()
-    )
-    return
+            # Сохраняем текущее состояние FSM перед оплатой
+            current_data = await state.get_data()
+            await state.update_data(pending_vacancy_data=current_data)
+            await state.set_state(None)  # Временно сбрасываем FSM
+            
+            await message.answer(
+                f"⚠️ Бесплатный лимит вакансий на месяц исчерпан ({decision.used}/{decision.limit}).\n\n"
+                f"💳 Купить безлимит за {await repo.get_price('unlimited')} ₸\n"
+                f"👥 Или пригласите друга — получите бонусы! /invite",
+                reply_markup=buy_unlimited_keyboard()
+            )
+            return
 
         data = await state.get_data()
         referred_by = await repo.get_referrer_for_user(message.from_user.id)
