@@ -635,24 +635,16 @@ async def manual_payment_start(callback: CallbackQuery, repo: SupabaseRepository
         price = None
     
     if not price:
-        await callback.message.answer("❌ Цена для этой услуги не настроена.\n\nАдмин может установить командой /set_price_unlimited 500")
+        await callback.message.answer("❌ Цена для этой услуги не настроена.")
         await callback.answer()
         return
     
     # Получаем номер телефона из БД
     phone = await repo.get_setting("beeline_payment_phone")
     if not phone:
-        await callback.message.answer("❌ Номер телефона для оплаты не настроен.\n\nАдмин может установить командой /set_phone +77051234567")
+        await callback.message.answer("❌ Номер телефона для оплаты не настроен.")
         await callback.answer()
         return
-    
-    payment = await repo.create_payment(
-        user_id=callback.from_user.id,
-        payment_type=PAYMENT_TYPE_MANUAL,
-        amount=price,
-        feature=feature,
-        vacancy_id=vacancy_id,
-    )
     
     # Название услуги
     if feature == "unlimited_vacancies":
@@ -665,6 +657,14 @@ async def manual_payment_start(callback: CallbackQuery, repo: SupabaseRepository
         title = "Срочная рассылка всем соискателям"
     else:
         title = "Услуга"
+    
+    payment = await repo.create_payment(
+        user_id=callback.from_user.id,
+        payment_type=PAYMENT_TYPE_MANUAL,
+        amount=price,
+        feature=feature,
+        vacancy_id=vacancy_id,
+    )
     
     await callback.message.answer(
         f"💳 Оплата функции\n\n"
