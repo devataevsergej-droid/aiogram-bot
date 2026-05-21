@@ -168,6 +168,23 @@ def channel_post_keyboard(vacancy_id: int, bot_username: str) -> InlineKeyboardM
         ]
     )
 
+def channel_post_keyboard(vacancy_id: int, bot_username: str) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="📩 Откликнуться",
+                    url=f"https://t.me/{bot_username}?start=apply_{vacancy_id}"
+                ),
+                InlineKeyboardButton(
+                    text="📤 Поделиться",
+                    switch_inline_query=f"Вакансия: {vacancy_id}"
+                ),
+            ],
+            [InlineKeyboardButton(text="🙈 Скрыть", callback_data=f"hide_post:{vacancy_id}")],
+        ]
+    )
+
 
 def weekly_stats_keyboard(bot_username: str) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
