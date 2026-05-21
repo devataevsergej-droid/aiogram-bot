@@ -1047,8 +1047,6 @@ async def save_phone(message: Message, state: FSMContext, repo: SupabaseReposito
 
 @router.message(Command("show_settings"))
 async def show_settings(message: Message, repo: SupabaseRepository, settings: Settings):
-    await message.answer(f"DEBUG: chat.id = {message.chat.id}, ADMIN_CHAT_ID = {settings.admin_chat_id}")
-    
     if message.chat.id != settings.admin_chat_id:
         await message.answer("⛔ Доступно только админам")
         return
