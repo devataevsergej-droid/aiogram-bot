@@ -1093,9 +1093,9 @@ async def set_price_vip_start(message: Message, state: FSMContext, repo: Supabas
 
 @router.message(Command("set_price_pin"))
 async def set_price_pin_start(message: Message, state: FSMContext, repo: SupabaseRepository, settings: Settings):
-    if message.chat.id != settings.admin_chat_id:
-        await message.answer("⛔ Доступно только админам")
-        return
+    #if message.chat.id != settings.admin_chat_id:
+        #await message.answer("⛔ Доступно только админам")
+        #return
     
     current = await repo.get_setting("price_pin_per_day")
     if not current:
