@@ -833,12 +833,12 @@ async def manual_payment_confirm(callback: CallbackQuery, state: FSMContext, rep
     # Если оплачен безлимит — проверяем, было ли сохранённое состояние
     if payment["feature"] == "unlimited_vacancies":
         # Получаем сохранённые данные
-        user_state = await state.storage.get_data(bot.id, payment["user_id"])
+        user_state = await state.storage.get_data(chat_id=payment["user_id"])
         pending_data = user_state.get("pending_vacancy_data")
         
         if pending_data:
             # Восстанавливаем FSM
-            await state.storage.set_data(bot.id, payment["user_id"], pending_data)
+            await state.storage.set_data(chat_id=payment["user_id"], data=pending_data)
             await state.set_state(VacancyForm.description)
             await bot.send_message(
                 payment["user_id"],
