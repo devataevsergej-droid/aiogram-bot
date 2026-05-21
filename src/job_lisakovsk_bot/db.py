@@ -76,12 +76,12 @@ class SupabaseRepository:
         return result.data[0]
 
 async def get_setting(self, key: str) -> str | None:
-    def query():
-        return self.client.table("bot_settings").select("value").eq("key", key).maybe_single().execute()
-    result = await self._run(query)
-    if not result or not result.data:
-        return None
-    return result.data["value"]
+        def query():
+            return self.client.table("bot_settings").select("value").eq("key", key).maybe_single().execute()
+        result = await self._run(query)
+        if not result or not result.data:
+            return None
+        return result.data["value"]
 
 async def set_setting(self, key: str, value: str) -> None:
         def query():
