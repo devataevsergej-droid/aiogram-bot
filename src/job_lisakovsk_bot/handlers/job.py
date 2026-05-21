@@ -813,7 +813,7 @@ async def handle_payment_check(message: Message, state: FSMContext, repo: Supaba
 
 
 @router.callback_query(F.data.startswith("manual_confirm:"))
-async def manual_payment_confirm(callback: CallbackQuery, repo: SupabaseRepository, settings: Settings, bot: Bot) -> None:
+async def manual_payment_confirm(callback: CallbackQuery, state: FSMContext, repo: SupabaseRepository, settings: Settings, bot: Bot) -> None:
     payment_id = int(callback.data.split(":", 1)[1])
     payment = await repo.mark_payment_paid(payment_id)
     if not payment:
@@ -821,33 +821,33 @@ async def manual_payment_confirm(callback: CallbackQuery, repo: SupabaseReposito
         return
     
     result = await fulfill_paid_feature(
-    repo=repo,
-    bot=bot,
-    settings=settings,
-    user_id=payment["user_id"],
-    feature=payment["feature"],
-    vacancy_id=payment.get("vacancy_id"),
-)
-await bot.send_message(payment["user_id"], result)
-
-# Если оплачен безлимит — проверяем, было ли сохранённое состояние
-if payment["feature"] == "unlimited_vacancies":
-    # Получаем сохранённые данные
-    user_state = await state.storage.get_data(bot.id, payment["user_id"])
-    pending_data = user_state.get("pending_vacancy_data")
+        repo=repo,
+        bot=bot,
+        settings=settings,
+        user_id=payment["user_id"],
+        feature=payment["feature"],
+        vacancy_id=payment.get("vacancy_id"),
+    )
+    await bot.send_message(payment["user_id"], result)
     
-    if pending_data:
-        # Восстанавливаем FSM
-        await state.storage.set_data(bot.id, payment["user_id"], pending_data)
-        await state.set_state(VacancyForm.description)
-        await bot.send_message(
-            payment["user_id"],
-            "✅ Безлимит активирован! Продолжите создание вакансии, введите описание:",
-            reply_markup=main_menu()
-        )
+    # Если оплачен безлимит — проверяем, было ли сохранённое состояние
+    if payment["feature"] == "unlimited_vacancies":
+        # Получаем сохранённые данные
+        user_state = await state.storage.get_data(bot.id, payment["user_id"])
+        pending_data = user_state.get("pending_vacancy_data")
+        
+        if pending_data:
+            # Восстанавливаем FSM
+            await state.storage.set_data(bot.id, payment["user_id"], pending_data)
+            await state.set_state(VacancyForm.description)
+            await bot.send_message(
+                payment["user_id"],
+                "✅ Безлимит активирован! Продолжите создание вакансии, введите описание:",
+                reply_markup=main_menu()
+            )
+    
     await callback.message.edit_text(f"✅ Ручная оплата #{payment_id} подтверждена.\n{result}")
     await callback.answer()
-
 
 @router.callback_query(F.data.startswith("manual_reject:"))
 async def manual_payment_reject(callback: CallbackQuery, repo: SupabaseRepository, bot: Bot) -> None:
