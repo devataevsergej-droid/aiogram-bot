@@ -654,10 +654,22 @@ async def manual_payment_start(callback: CallbackQuery, repo: SupabaseRepository
         vacancy_id=vacancy_id,
     )
     
+    # Название услуги
+    if feature == "unlimited_vacancies":
+        title = "Безлимит вакансий на месяц"
+    elif feature == "vip_seeker":
+        title = "VIP соискателя на месяц"
+    elif feature == "pin_vacancy":
+        title = "Закреп вакансии в канале"
+    elif feature == "urgent_broadcast":
+        title = "Срочная рассылка всем соискателям"
+    else:
+        title = "Услуга"
+    
     await callback.message.answer(
         f"💳 Оплата функции\n\n"
         f"┌─────────────────────┐\n"
-        f"│ 📦 {request.title}\n"
+        f"│ 📦 {title}\n"
         f"│ 💰 Сумма: {price} ₸\n"
         f"└─────────────────────┘\n\n"
         f"📱 Переведите {price} ₸ на номер Билайн:\n"
@@ -672,7 +684,6 @@ async def manual_payment_start(callback: CallbackQuery, repo: SupabaseRepository
         f"✅ После оплаты нажмите кнопку «Я оплатил» и пришлите чек",
         reply_markup=manual_payment_keyboard(payment["id"])
     )
-    
     await callback.answer()
 
 
