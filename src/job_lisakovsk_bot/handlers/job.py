@@ -1200,4 +1200,3 @@ async def show_settings(message: Message, repo: SupabaseRepository, settings: Se
         f"/enable_free /disable_free",
         parse_mode="Markdown"
     )
-    
