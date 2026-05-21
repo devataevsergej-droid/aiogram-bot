@@ -505,6 +505,7 @@ async def approve_vacancy(callback: CallbackQuery, repo: SupabaseRepository, set
     channel_message = await bot.send_message(
         settings.channel_id,
         vacancy_public_text(vacancy, settings.bot_username),
+        reply_markup=channel_post_keyboard(vacancy_id, settings.bot_username)
     )
     
     vacancy = await repo.approve_vacancy(vacancy_id, channel_message.message_id)
