@@ -3,6 +3,8 @@ from __future__ import annotations
 import logging
 from datetime import UTC, datetime, timedelta
 
+from aiogram.fsm.storage.base import StorageKey
+
 from aiogram import Bot, F, Router
 from aiogram.filters import Command, CommandObject, CommandStart
 from aiogram.fsm.context import FSMContext
@@ -122,6 +124,7 @@ class VacancyForm(StatesGroup):
     salary = State()
     contacts = State()
     description = State()
+    waiting_payment_check = State()
 
 
 class RejectVacancyForm(StatesGroup):
@@ -194,7 +197,7 @@ async def fulfill_paid_feature(
             return "❌ Оплата получена, но вакансия ещё не опубликована в канале."
         
         # Получаем количество дней из переданных параметров
-        pin_days = kwargs.get("pin_days", 3)
+        pin_days = 3
         
         await bot.pin_chat_message(settings.channel_id, vacancy["channel_message_id"], disable_notification=True)
         await repo.schedule_unpin(vacancy_id, vacancy["channel_message_id"], datetime.now(UTC) + timedelta(days=pin_days))
@@ -217,7 +220,14 @@ async def fulfill_paid_feature(
 
 
 @router.message(CommandStart())
-async def start(message: Message, state: FSMContext, command: CommandObject, repo: SupabaseRepository, settings: Settings) -> None:
+async def start(
+    message: Message,
+    state: FSMContext,
+    command: CommandObject,
+    repo: SupabaseRepository,
+    settings: Settings,
+    bot: Bot,
+) -> None:
     arg = command.args
     referrer_id = parse_referral_arg(arg)
     
@@ -431,9 +441,15 @@ async def vacancy_salary(message: Message, state: FSMContext) -> None:
 
 @router.message(VacancyForm.contacts)
 async def vacancy_contacts(message: Message, state: FSMContext) -> None:
-    await state.update_data(contacts=(message.text or "").strip())
+    await state.update_data(
+        contacts=(message.text or "").strip()
+    )
+
     await state.set_state(VacancyForm.description)
-    await message.answer("📝 Опишите, что требуется от кандидата.")
+
+    await message.answer(
+        "📝 Опишите, что требуется от кандидата."
+    )
 
 
 @router.message(VacancyForm.description)
@@ -444,28 +460,14 @@ async def vacancy_description(
     settings: Settings,
     bot: Bot,
 ) -> None:
-    try:
-        usage = await repo.get_or_create_usage(message.from_user.id)
-        referrals = await repo.count_referrals(message.from_user.id)
-        has_unlimited = await repo.has_unlimited_vacancies(message.from_user.id)
-        decision = can_create_vacancy(int(usage.get("vacancies_this_month") or 0), referrals, has_unlimited)
-        
-        if not decision.allowed:
-            # Сохраняем текущее состояние FSM перед оплатой
-            current_data = await state.get_data()
-            await state.update_data(pending_vacancy_data=current_data)
-            await state.set_state(None)  # Временно сбрасываем FSM
-            
-            await message.answer(
-                f"⚠️ Бесплатный лимит вакансий на месяц исчерпан ({decision.used}/{decision.limit}).\n\n"
-                f"💳 Купить безлимит за {await repo.get_price('unlimited')} ₸\n"
-                f"👥 Или пригласите друга — получите бонусы! /invite",
-                reply_markup=buy_unlimited_keyboard()
-            )
-            return
 
+    try:
         data = await state.get_data()
-        referred_by = await repo.get_referrer_for_user(message.from_user.id)
+
+        referred_by = await repo.get_referrer_for_user(
+            message.from_user.id
+        )
+
         payload = {
             "employer_id": message.from_user.id,
             "employer_username": message.from_user.username,
@@ -478,21 +480,45 @@ async def vacancy_description(
             "description": (message.text or "").strip(),
             "status": "pending",
         }
+
         if referred_by is not None:
             payload["referred_by"] = referred_by
+
         vacancy = await repo.create_vacancy(payload)
-        await repo.increment_vacancies_this_month(message.from_user.id)
+
+        await repo.increment_vacancies_this_month(
+            message.from_user.id
+        )
+
         await state.clear()
-        await message.answer("✅ Вакансия отправлена на модерацию. После проверки я сообщу результат.", reply_markup=main_menu())
+
+        await message.answer(
+            "✅ Вакансия отправлена на модерацию. "
+            "После проверки я сообщу результат.",
+            reply_markup=main_menu()
+        )
+
         await bot.send_message(
             settings.admin_chat_id,
-            "🆕 Новая вакансия на модерацию:\n\n" + vacancy_public_text(vacancy, settings.bot_username),
-            reply_markup=moderation_keyboard(vacancy["id"]),
+            "🆕 Новая вакансия на модерацию:\n\n"
+            + vacancy_public_text(
+                vacancy,
+                settings.bot_username
+            ),
+            reply_markup=moderation_keyboard(
+                vacancy["id"]
+            ),
         )
-    except Exception as e:
-        logger.error(f"Error in vacancy_description: {e}")
-        await message.answer("❌ Ошибка при создании вакансии. Попробуйте позже.")
 
+    except Exception as e:
+        logger.error(
+            f"Error in vacancy_description: {e}"
+        )
+
+        await message.answer(
+            "❌ Ошибка при создании вакансии. "
+            "Попробуйте позже."
+        )
 
 @router.callback_query(F.data.startswith("moderate_approve:"))
 async def approve_vacancy(callback: CallbackQuery, repo: SupabaseRepository, settings: Settings, bot: Bot) -> None:
@@ -698,11 +724,22 @@ async def manual_payment_start(callback: CallbackQuery, repo: SupabaseRepository
 async def manual_payment_paid(callback: CallbackQuery, state: FSMContext, repo: SupabaseRepository, settings: Settings, bot: Bot):
     payment_id = int(callback.data.split(":", 1)[1])
     payment = await repo.get_payment(payment_id)
+    current_data = await state.get_data()
+
+    await state.update_data(
+    pending_payment_id=payment_id,
+    pending_vacancy_data=current_data
+)
+    
+    await state.set_state(
+    VacancyForm.waiting_payment_check
+)
+
+
     if not payment:
         await callback.answer("❌ Платёж не найден", show_alert=True)
         return
     
-    await state.update_data(pending_payment_id=payment_id)
     await callback.message.answer(
         "📸 *Пришлите чек об оплате*\n\n"
         "Сделайте скриншот или фото квитанции и отправьте в этот чат.\n\n"
@@ -780,46 +817,82 @@ async def pin_vacancy_days(message: Message, state: FSMContext, repo: SupabaseRe
         await message.answer("❌ Ошибка: нужно ввести число. Укажите количество дней (3 или больше):")
 
 
-@router.message(F.photo)
-async def handle_payment_check(message: Message, state: FSMContext, repo: SupabaseRepository, settings: Settings, bot: Bot):
+@router.message(
+    VacancyForm.waiting_payment_check,
+    F.photo
+)
+async def handle_payment_check(
+    message: Message,
+    state: FSMContext,
+    repo: SupabaseRepository,
+    settings: Settings,
+    bot: Bot
+):
     data = await state.get_data()
     payment_id = data.get("pending_payment_id")
+
     if not payment_id:
         return
-    
+
     payment = await repo.get_payment(payment_id)
+
     if not payment:
-        await message.answer("❌ Платёж не найден. Попробуйте снова.")
+        await message.answer(
+            "❌ Платёж не найден. Попробуйте снова."
+        )
         return
-    
-    # Отправляем чек админу
+
+    feature_names = {
+        "unlimited_vacancies": "Безлимит вакансий",
+        "vip_seeker": "VIP соискатель",
+        "pin_vacancy": "Закреп вакансии",
+        "urgent_broadcast": "Срочная рассылка",
+    }
+
     caption = (
-        f"🧾 *Новый чек на подтверждение*\n\n"
+        f"🧾 Новый чек на подтверждение\n\n"
         f"💰 Сумма: {payment['amount']} ₸\n"
-        f"📦 Услуга: {payment['feature']}\n"
+        f"📦 Услуга: {feature_names.get(payment['feature'], payment['feature'])}\n"
         f"👤 Пользователь: {payment['user_id']}\n"
-        f"🆔 Платёж #{payment_id}"
+        f"🆔 ID заявки #{payment_id}"
     )
-    
+
     await bot.send_photo(
         settings.admin_chat_id,
         message.photo[-1].file_id,
         caption=caption,
         reply_markup=admin_manual_payment_keyboard(payment_id)
     )
-    
-    await message.answer("✅ Чек отправлен администратору на проверку. Ожидайте подтверждения.")
-    await state.update_data(pending_payment_id=None)
 
+    await state.update_data(
+        pending_payment_id=None
+    )
+
+    await message.answer(
+        "✅ Чек отправлен администратору на проверку.\n\n"
+        "После подтверждения оплаты публикация вакансии продолжится автоматически."
+    )
 
 @router.callback_query(F.data.startswith("manual_confirm:"))
-async def manual_payment_confirm(callback: CallbackQuery, state: FSMContext, repo: SupabaseRepository, settings: Settings, bot: Bot) -> None:
+async def manual_payment_confirm(
+    callback: CallbackQuery,
+    state: FSMContext,
+    repo: SupabaseRepository,
+    settings: Settings,
+    bot: Bot
+) -> None:
+
     payment_id = int(callback.data.split(":", 1)[1])
+
     payment = await repo.mark_payment_paid(payment_id)
+
     if not payment:
-        await callback.answer("❌ Платёж не найден", show_alert=True)
+        await callback.answer(
+            "❌ Платёж не найден",
+            show_alert=True
+        )
         return
-    
+
     result = await fulfill_paid_feature(
         repo=repo,
         bot=bot,
@@ -828,25 +901,46 @@ async def manual_payment_confirm(callback: CallbackQuery, state: FSMContext, rep
         feature=payment["feature"],
         vacancy_id=payment.get("vacancy_id"),
     )
-    await bot.send_message(payment["user_id"], result)
-    
-    # Если оплачен безлимит — проверяем, было ли сохранённое состояние
+
+
     if payment["feature"] == "unlimited_vacancies":
-        # Получаем сохранённые данные
-        user_state = await state.storage.get_data(chat_id=payment["user_id"])
-        pending_data = user_state.get("pending_vacancy_data")
-        
+
+        user_key = StorageKey(
+            bot_id=bot.id,
+            chat_id=payment["user_id"],
+            user_id=payment["user_id"]
+        )
+
+        user_state = await state.storage.get_data(
+            key=user_key
+        )
+
+        pending_data = user_state.get(
+            "pending_vacancy_data"
+        )
+
         if pending_data:
-            # Восстанавливаем FSM
-            await state.storage.set_data(chat_id=payment["user_id"], data=pending_data)
-            await state.set_state(VacancyForm.description)
+
+            await state.storage.set_data(
+                key=user_key,
+                data=pending_data
+            )
+
+            await state.storage.set_state(
+                key=user_key,
+                state=VacancyForm.description
+            )
+
             await bot.send_message(
                 payment["user_id"],
-                "✅ Безлимит активирован! Продолжите создание вакансии, введите описание:",
-                reply_markup=main_menu()
+                "✅ Безлимит активирован!\n\n"
+                "Теперь отправьте описание вакансии ещё раз."
             )
-    
-    await callback.message.edit_text(f"✅ Ручная оплата #{payment_id} подтверждена.\n{result}")
+
+    await callback.message.answer(
+        f"✅ Ручная оплата #{payment_id} подтверждена.\n{result}"
+    )
+
     await callback.answer()
 
 @router.callback_query(F.data.startswith("manual_reject:"))

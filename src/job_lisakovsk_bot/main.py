@@ -6,7 +6,7 @@ import logging
 from aiogram import Bot, Dispatcher
 from aiogram.fsm.storage.memory import MemoryStorage
 
-from config import get_settings
+from job_lisakovsk_bot.config import get_settings
 from job_lisakovsk_bot.db import SupabaseRepository
 from job_lisakovsk_bot.handlers.job import router as job_router
 from job_lisakovsk_bot.health import start_health_server
