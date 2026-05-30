@@ -12,17 +12,108 @@ def format_salary(salary_min: int | None, salary_max: int | None) -> str:
 
 
 def vacancy_public_text(vacancy: dict, bot_username: str) -> str:
+    from datetime import datetime
+
     title = vacancy["title"]
-    salary = format_salary(vacancy.get("salary_min"), vacancy.get("salary_max"))
+
+    company_name = vacancy.get(
+        "company_name"
+    ) or "Работодатель"
+
+    salary = format_salary(
+        vacancy.get("salary_min"),
+        vacancy.get("salary_max")
+    )
+
     schedule = vacancy["schedule"].lower()
     description = vacancy["description"]
     contacts = vacancy["contacts"]
+
+    lower_title = title.lower()
+
+    profession_tags = []
+
+    if "бариста" in lower_title:
+        profession_tags.extend([
+            "#Бариста@LisakovskHub",
+            "#HoReCa@LisakovskHub",
+        ])
+
+    elif "официант" in lower_title:
+        profession_tags.extend([
+            "#Официант@LisakovskHub",
+            "#HoReCa@LisakovskHub",
+        ])
+
+    elif "продав" in lower_title:
+        profession_tags.extend([
+            "#Продавец@LisakovskHub",
+            "#Retail@LisakovskHub",
+        ])
+
+    elif "свар" in lower_title:
+        profession_tags.extend([
+            "#Сварщик@LisakovskHub",
+            "#Стройка@LisakovskHub",
+        ])
+
+    else:
+        profession_tags.append(
+            "#Вакансии@LisakovskHub"
+        )
+
+    schedule_tag = ""
+
+    if "смен" in schedule:
+        schedule_tag = "#СменныйГрафик@LisakovskHub"
+
+    elif "полный" in schedule:
+        schedule_tag = "#ПолныйДень@LisakovskHub"
+
+    elif "подработ" in schedule:
+        schedule_tag = "#Подработка@LisakovskHub"
+
+    month_names = {
+        1: "Январь",
+        2: "Февраль",
+        3: "Март",
+        4: "Апрель",
+        5: "Май",
+        6: "Июнь",
+        7: "Июль",
+        8: "Август",
+        9: "Сентябрь",
+        10: "Октябрь",
+        11: "Ноябрь",
+        12: "Декабрь",
+    }
+
+    now = datetime.now()
+
+    date_tag = (
+        f"#{month_names[now.month]}"
+        f"{now.year}@LisakovskHub"
+    )
+
+    tags = profession_tags + [
+        schedule_tag,
+        date_tag,
+        "#Работа@LisakovskHub",
+    ]
+
+    tags = [tag for tag in tags if tag]
+
+    hashtags = " ".join(tags)
+
     return (
-        f"🏗 Требуется {title}\n"
+        f"🏢 {company_name}\n\n"
+        f"📌 {title}\n\n"
         f"💰 {salary}\n"
-        f"📍 Лисаковск, {schedule}\n"
-        f"📝 {description}\n"
-        f"Контакты: {contacts}\n\n"
+        f"📍 Лисаковск\n"
+        f"🕒 {schedule.capitalize()}\n\n"
+        f"📝 {description}\n\n"
+        f"📲 Контакты:\n{contacts}\n\n"
+        f"{hashtags}\n\n"
         f"Разместить свою вакансию: @{bot_username}"
     )
 

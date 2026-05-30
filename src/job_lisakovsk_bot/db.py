@@ -4,6 +4,8 @@ import asyncio
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
+import logging
+
 from supabase import Client, create_client
 
 from job_lisakovsk_bot.constants import (
@@ -18,6 +20,7 @@ from job_lisakovsk_bot.constants import (
 )
 from job_lisakovsk_bot.services.limits import day_key, month_key
 
+logger = logging.getLogger(__name__)
 
 class SupabaseRepository:
     def __init__(self, url: str, key: str) -> None:
@@ -135,6 +138,26 @@ class SupabaseRepository:
             return request.execute()
         result = await self._run(query)
         return result.data
+    
+    
+    async def list_employer_vacancies(
+        self,
+        employer_id: int
+    ) -> list[dict[str, Any]]:
+
+        def query():
+            return (
+                self.client.table("job_vacancies")
+                .select("*")
+                .eq("employer_id", employer_id)
+                .order("created_at", desc=True)
+                .execute()
+            )
+
+        result = await self._run(query)
+
+        return result.data
+
 
     async def find_matching_seekers(self, vacancy: dict[str, Any]) -> list[dict[str, Any]]:
         def query():
@@ -182,6 +205,29 @@ class SupabaseRepository:
                 .execute()
             )
         await self._run(query)
+
+    async def list_vacancy_responses(
+        self,
+        vacancy_id: int
+    ) -> list[dict[str, Any]]:
+
+        def query():
+            return (
+                self.client.table("job_notifications")
+                .select("*")
+                .eq("vacancy_id", vacancy_id)
+                .eq("reacted", "like")
+                .order("id", desc=True)
+                .execute()
+            )
+
+        result = await self._run(query)
+        logger.warning(
+            f"RESPONSES FOR VACANCY "
+            f"{vacancy_id}: {result.data}"
+        )
+
+        return result.data    
 
     async def get_or_create_usage(self, user_id: int) -> dict[str, Any]:
         current_month = month_key()
@@ -467,13 +513,36 @@ class SupabaseRepository:
         }
 
     async def employer_stats(self, employer_id: int) -> dict[str, int]:
+
         def vacancies():
-            return self.client.table("job_vacancies").select("id,sphere,status").eq("employer_id", employer_id).execute()
+            return (
+                self.client.table("job_vacancies")
+                .select("id,sphere,status", count="exact")
+                .eq("employer_id", employer_id)
+                .execute()
+            )
+
         vacancy_result = await self._run(vacancies)
-        vacancy_ids = [row["id"] for row in vacancy_result.data]
-        main_sphere = vacancy_result.data[0]["sphere"] if vacancy_result.data else None
+
+        vacancy_ids = [
+            row["id"]
+            for row in vacancy_result.data
+        ]
+
+        main_sphere = (
+            vacancy_result.data[0]["sphere"]
+            if vacancy_result.data
+            else None
+        )
+
         def notifications():
-            return self.client.table("job_notifications").select("id", count="exact").in_("vacancy_id", vacancy_ids or [-1]).execute()
+            return (
+                self.client.table("job_notifications")
+                .select("id", count="exact")
+                .in_("vacancy_id", vacancy_ids or [-1])
+                .execute()
+            )
+
         def likes():
             return (
                 self.client.table("job_notifications")
@@ -482,18 +551,55 @@ class SupabaseRepository:
                 .eq("reacted", "like")
                 .execute()
             )
+
         def seekers_in_sphere():
-            request = self.client.table("job_seekers").select("user_id", count="exact").eq("active", True)
+
+            request = (
+                self.client.table("job_seekers")
+                .select("user_id", count="exact")
+                .eq("active", True)
+            )
+
             if main_sphere:
-                request = request.eq("sphere", main_sphere)
+                request = request.eq(
+                    "sphere",
+                    main_sphere
+                )
+
             return request.execute()
-        notifications_result, likes_result, seekers_result = await asyncio.gather(
-            self._run(notifications), self._run(likes), self._run(seekers_in_sphere)
+
+        notifications_result = await self._run(
+            notifications
         )
-        active_vacancies = sum(1 for row in vacancy_result.data if row.get("status") == "approved")
-        pending_vacancies = sum(1 for row in vacancy_result.data if row.get("status") == "pending")
-        closed_vacancies = sum(1 for row in vacancy_result.data if row.get("status") == "closed")
-        rejected_vacancies = sum(1 for row in vacancy_result.data if row.get("status") == "rejected")
+
+        likes_result = await self._run(
+            likes
+        )
+
+        seekers_result = await self._run(
+            seekers_in_sphere
+        )
+
+        active_vacancies = sum(
+            1 for row in vacancy_result.data
+            if row.get("status") == "approved"
+        )
+
+        pending_vacancies = sum(
+            1 for row in vacancy_result.data
+            if row.get("status") == "pending"
+        )
+
+        closed_vacancies = sum(
+            1 for row in vacancy_result.data
+            if row.get("status") == "closed"
+        )
+
+        rejected_vacancies = sum(
+            1 for row in vacancy_result.data
+            if row.get("status") == "rejected"
+        )
+
         return {
             "vacancies_total": int(vacancy_result.count or 0),
             "active_vacancies": active_vacancies,
@@ -505,10 +611,19 @@ class SupabaseRepository:
             "seekers_in_sphere": int(seekers_result.count or 0),
         }
 
+
     async def seeker_stats(self, user_id: int) -> dict[str, Any]:
+
         seeker = await self.get_seeker(user_id)
+
         def notifications():
-            return self.client.table("job_notifications").select("id", count="exact").eq("seeker_id", user_id).execute()
+            return (
+                self.client.table("job_notifications")
+                .select("id", count="exact")
+                .eq("seeker_id", user_id)
+                .execute()
+            )
+
         def likes():
             return (
                 self.client.table("job_notifications")
@@ -517,103 +632,143 @@ class SupabaseRepository:
                 .eq("reacted", "like")
                 .execute()
             )
-        notifications_result, likes_result = await asyncio.gather(self._run(notifications), self._run(likes))
+
+        notifications_result, likes_result = await asyncio.gather(
+            self._run(notifications),
+            self._run(likes)
+        )
+
         return {
-            "created_at": seeker.get("created_at") if seeker else None,
-            "views": int(notifications_result.count or 0),
-            "responses": int(likes_result.count or 0),
-            "referrals": await self.count_referrals(user_id),
-            "vip_until": seeker.get("vip_until") if seeker else None,
+            "created_at": (
+                seeker.get("created_at")
+                if seeker
+                else None
+            ),
+
+            "views": int(
+                notifications_result.count or 0
+            ),
+
+            "responses": int(
+                likes_result.count or 0
+            ),
+
+            "referrals": await self.count_referrals(
+                user_id
+            ),
+
+            "vip_until": (
+                seeker.get("vip_until")
+                if seeker
+                else None
+            ),
         }
 
     async def weekly_stats(self) -> dict[str, Any]:
-        since = (datetime.now(UTC) - timedelta(days=7)).isoformat()
-        def seekers():
-            return self.client.table("job_seekers").select("user_id", count="exact").gte("created_at", since).execute()
-        def vacancies():
-            return self.client.table("job_vacancies").select("id,employer_id,employer_username,sphere").gte("created_at", since).execute()
-        def found():
-            return self.client.table("job_seekers").select("user_id", count="exact").eq("found_work", True).gte("updated_at", since).execute()
-        seeker_result, vacancy_result, found_result = await asyncio.gather(
-            self._run(seekers), self._run(vacancies), self._run(found)
-        )
-        sphere_counts: dict[str, int] = {}
-        vacancy_by_id: dict[int, dict[str, Any]] = {}
-        employer_vacancy_counts: dict[int, int] = {}
-        employer_usernames: dict[int, str] = {}
-        for row in vacancy_result.data:
-            sphere_counts[row["sphere"]] = sphere_counts.get(row["sphere"], 0) + 1
-            vacancy_by_id[row["id"]] = row
-            employer_id = row["employer_id"]
-            employer_vacancy_counts[employer_id] = employer_vacancy_counts.get(employer_id, 0) + 1
-            employer_usernames[employer_id] = row.get("employer_username") or f"id{employer_id}"
-        def likes():
-            request = (
-                self.client.table("job_notifications")
-                .select("vacancy_id")
-                .eq("reacted", "like")
-                .gte("sent_at", since)
+            since = (datetime.now(UTC) - timedelta(days=7)).isoformat()
+            def seekers():
+                return self.client.table("job_seekers").select("user_id", count="exact").gte("created_at", since).execute()
+            def vacancies():
+                return self.client.table("job_vacancies").select("id,employer_id,employer_username,sphere").gte("created_at", since).execute()
+            def found():
+                return self.client.table("job_seekers").select("user_id", count="exact").eq("found_work", True).gte("updated_at", since).execute()
+            seeker_result, vacancy_result, found_result = await asyncio.gather(
+                self._run(seekers), self._run(vacancies), self._run(found)
             )
-            if vacancy_by_id:
-                request = request.in_("vacancy_id", list(vacancy_by_id))
-            return request.execute()
-        likes_result = await self._run(likes)
-        employer_like_counts: dict[int, int] = {}
-        for row in likes_result.data:
-            vacancy = vacancy_by_id.get(row["vacancy_id"])
-            if not vacancy:
-                continue
-            employer_id = vacancy["employer_id"]
-            employer_like_counts[employer_id] = employer_like_counts.get(employer_id, 0) + 1
-        top_employers = []
-        for employer_id, likes_count in sorted(employer_like_counts.items(), key=lambda item: item[1], reverse=True)[:3]:
-            username = employer_usernames.get(employer_id, f"id{employer_id}")
-            label = f"@{username}" if not str(username).startswith("id") and not str(username).startswith("@") else str(username)
-            top_employers.append(
-                f"{label} — {employer_vacancy_counts.get(employer_id, 0)} вакансий, {likes_count} откликов"
-            )
-        popular_sphere = max(sphere_counts, key=sphere_counts.get) if sphere_counts else "пока нет данных"
-        return {
-            "new_seekers": int(seeker_result.count or 0),
-            "new_vacancies": len(vacancy_result.data),
-            "found_work": int(found_result.count or 0),
-            "popular_sphere": popular_sphere,
-            "top_employers": top_employers,
-        }
+            sphere_counts: dict[str, int] = {}
+            vacancy_by_id: dict[int, dict[str, Any]] = {}
+            employer_vacancy_counts: dict[int, int] = {}
+            employer_usernames: dict[int, str] = {}
+            for row in vacancy_result.data:
+                sphere_counts[row["sphere"]] = sphere_counts.get(row["sphere"], 0) + 1
+                vacancy_by_id[row["id"]] = row
+                employer_id = row["employer_id"]
+                employer_vacancy_counts[employer_id] = employer_vacancy_counts.get(employer_id, 0) + 1
+                employer_usernames[employer_id] = row.get("employer_username") or f"id{employer_id}"
+            def likes():
+                request = (
+                    self.client.table("job_notifications")
+                    .select("vacancy_id")
+                    .eq("reacted", "like")
+                    .gte("sent_at", since)
+                )
+                if vacancy_by_id:
+                    request = request.in_("vacancy_id", list(vacancy_by_id))
+                return request.execute()
+            likes_result = await self._run(likes)
+            employer_like_counts: dict[int, int] = {}
+            for row in likes_result.data:
+                vacancy = vacancy_by_id.get(row["vacancy_id"])
+                if not vacancy:
+                    continue
+                employer_id = vacancy["employer_id"]
+                employer_like_counts[employer_id] = employer_like_counts.get(employer_id, 0) + 1
+            top_employers = []
+            for employer_id, likes_count in sorted(employer_like_counts.items(), key=lambda item: item[1], reverse=True)[:3]:
+                username = employer_usernames.get(employer_id, f"id{employer_id}")
+                label = f"@{username}" if not str(username).startswith("id") and not str(username).startswith("@") else str(username)
+                top_employers.append(
+                    f"{label} — {employer_vacancy_counts.get(employer_id, 0)} вакансий, {likes_count} откликов"
+                )
+            popular_sphere = max(sphere_counts, key=sphere_counts.get) if sphere_counts else "пока нет данных"
+            return {
+                "new_seekers": int(seeker_result.count or 0),
+                "new_vacancies": len(vacancy_result.data),
+                "found_work": int(found_result.count or 0),
+                "popular_sphere": popular_sphere,
+                "top_employers": top_employers,
+            }
 
     async def count_employer_vacancies(self, employer_id: int) -> int:
-        def query():
-            return self.client.table("job_vacancies").select("id", count="exact").eq("employer_id", employer_id).execute()
-        result = await self._run(query)
-        return int(result.count or 0)
+            def query():
+                return self.client.table("job_vacancies").select("id", count="exact").eq("employer_id", employer_id).execute()
+            result = await self._run(query)
+            return int(result.count or 0)
 
     async def get_setting(self, key: str) -> str | None:
-        def query():
-            return self.client.table("bot_settings").select("value").eq("key", key).maybe_single().execute()
-        result = await self._run(query)
-        if not result or not result.data:
-            return None
-        return result.data["value"]
+            def query():
+                return self.client.table("bot_settings").select("value").eq("key", key).maybe_single().execute()
+            result = await self._run(query)
+            if not result or not result.data:
+                return None
+            return result.data["value"]
 
     async def set_setting(self, key: str, value: str) -> None:
-        def query():
-            return self.client.table("bot_settings").upsert({"key": key, "value": value}, on_conflict="key").execute()
-        await self._run(query)
+            def query():
+                return self.client.table("bot_settings").upsert({"key": key, "value": value}, on_conflict="key").execute()
+            await self._run(query)
 
     async def get_price(self, service: str) -> int | None:
-        value = await self.get_setting(f"price_{service}")
-        if value and value.isdigit():
-            return int(value)
-        return None
+            value = await self.get_setting(f"price_{service}")
+            if value and value.isdigit():
+                return int(value)
+            return None
 
     async def get_user_active_role(self, user_id: int) -> dict | None:
-        def query():
-            return self.client.table("user_active_role").select("*").eq("user_id", user_id).maybe_single().execute()
-        result = await self._run(query)
-        return result.data if result and result.data else None
+            def query():
+                return self.client.table("user_active_role").select("*").eq("user_id", user_id).maybe_single().execute()
+            result = await self._run(query)
+            return result.data if result and result.data else None
 
-    async def set_user_active_role(self, user_id: int, role: str) -> None:
-        payload = {"user_id": user_id, "role": role}
-        def query():
-            return self.client.table("user_active_role").upsert(payload, on_conflict="user_id").execute()
-        await self._run(query)
+    async def set_user_active_role(
+            self,
+            user_id: int,
+            role: str
+        ) -> None:
+
+            payload = {
+                "user_id": user_id,
+                "role": role
+            }
+
+            def query():
+                return (
+                    self.client.table("user_active_role")
+                    .upsert(
+                        payload,
+                        on_conflict="user_id"
+                    )
+                    .execute()
+                )
+
+            await self._run(query)
