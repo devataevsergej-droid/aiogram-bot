@@ -35,6 +35,7 @@ from job_lisakovsk_bot.keyboards.job_inline import (
     seeker_vip_keyboard,
     spheres_keyboard,
     vacancies_keyboard,
+    vacancy_responded_keyboard,
     vacancy_paid_features_keyboard,
 )
 from job_lisakovsk_bot.services.job_text import (
@@ -56,6 +57,22 @@ from job_lisakovsk_bot.services.payments import get_feature_request
 from job_lisakovsk_bot.services.referrals import parse_referral_arg, referral_bonus_text, referral_deep_link
 from job_lisakovsk_bot.services.salary import parse_salary_range
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+
+from pathlib import Path
+from random import choice
+
+from aiogram.types import FSInputFile
+
+ASSETS_DIR = (
+    Path(__file__).resolve().parent.parent / "assets"
+)
+
+SHARE_BANNERS = [
+    ASSETS_DIR / "banner_1.png",
+    ASSETS_DIR / "banner_2.png",
+    ASSETS_DIR / "banner_3.png",
+    ASSETS_DIR / "banner_4.png",
+]
 
 logger = logging.getLogger(__name__)
 router = Router(name="job")
@@ -263,6 +280,7 @@ async def start(
 ) -> None:
 
     arg = command.args
+    await message.answer(f"DEBUG ARG: {arg}")
 
     referrer_id = parse_referral_arg(arg)
 
@@ -336,20 +354,47 @@ async def start(
 
         vacancy_id = int(arg.split("_")[1])
 
+        banner = choice(SHARE_BANNERS)
+
+        banner_name = banner.stem
+
+        if banner_name.endswith("1"):
+            banner_code = "b1"
+        elif banner_name.endswith("2"):
+            banner_code = "b2"
+        elif banner_name.endswith("3"):
+            banner_code = "b3"
+        elif banner_name.endswith("4"):
+            banner_code = "b4"
+        else:
+            banner_code = "b0"
+
         referral_link = (
             f"https://t.me/{settings.bot_username}"
-            f"?start=vacancy_{vacancy_id}"
-            f"_ref_{message.from_user.id}"
+            f"?start={banner_code}_r{message.from_user.id}"
+        )
+
+        await message.answer_photo(
+            photo=FSInputFile(str(banner)),
+            caption=
+                "📢 Делитесь проектом и получайте бонусные показы!\n\n"
+                "Лучше всего работают статусы и истории.\n\n"
+                "Сохраните баннер и разместите его там, где вас читают 👇"
         )
 
         await message.answer(
-            "🎁 Ваша персональная ссылка "
-            "для приглашений:\n\n"
+            "🎁 Ваша персональная ссылка для приглашений:\n\n"
 
             f"{referral_link}\n\n"
 
-            "За активных пользователей "
-            "вы получаете бонусы 🙂"
+            "📢 Сохраните баннер и разместите его:\n"
+            "• в статусе WhatsApp\n"
+            "• в Telegram Stories\n"
+            "• в Instagram Stories\n"
+            "• в Одноклассниках\n"
+            "• в городских чатах и группах\n\n"
+
+            "👥 За новых пользователей начисляются бонусные показы."
         )
 
         return
@@ -559,7 +604,11 @@ async def seeker_schedule(callback: CallbackQuery, state: FSMContext) -> None:
     await state.update_data(schedule=callback.data.split(":", 1)[1])
     await state.set_state(SeekerForm.salary)
     await callback.message.edit_text(
-        "💰 Укажите зарплату от и до, например: 200000-300000.\nЕсли не важно — напишите «Не важно»."
+        "💰 Укажите желаемую зарплату в тысячах тенге.\n\n"
+        "Примеры:\n"
+        "200-300\n"
+        "350-500\n\n"
+        "Если не важно — напишите «Не важно»."
     )
     await callback.answer()
 
@@ -567,19 +616,44 @@ async def seeker_schedule(callback: CallbackQuery, state: FSMContext) -> None:
 @router.message(SeekerForm.salary)
 async def seeker_salary(message: Message, state: FSMContext) -> None:
     text = message.text or ""
+
     if text.lower() in ["не важно", "договорная", "договор"]:
-        await state.update_data(salary_min=None, salary_max=None, salary_text="Договорная")
+        await state.update_data(
+            salary_min=None,
+            salary_max=None,
+            salary_text="Договорная"
+        )
+
     else:
         try:
             salary_min, salary_max = parse_salary_range(text)
-            await state.update_data(salary_min=salary_min, salary_max=salary_max, salary_text=f"{salary_min}-{salary_max} ₸")
-        except ValueError:
-            await message.answer("❌ Не понял сумму. Напишите диапазон вроде 200000-300000, «Не важно» или «Договорная».")
-            return
-    
-    await state.set_state(SeekerForm.about)
-    await message.answer("📝 Коротко о себе одним предложением. Например: «Сварщик с опытом 5 лет, есть свой инструмент».")
 
+            await state.update_data(
+                salary_min=salary_min,
+                salary_max=salary_max,
+                salary_text=f"{salary_min}-{salary_max} тыс. тг"
+            )
+
+        except ValueError:
+            await message.answer(
+                "❌ Не понял сумму.\n\n"
+                "Введите диапазон в тысячах тенге.\n\n"
+                "Примеры:\n"
+                "200-300\n"
+                "350-500\n\n"
+                "Или напишите:\n"
+                "Не важно\n"
+                "Договорная"
+            )
+            return
+
+    await state.set_state(SeekerForm.about)
+
+    await message.answer(
+        "📝 Коротко о себе одним предложением.\n\n"
+        "Например:\n"
+        "Сварщик с опытом 5 лет, есть свой инструмент."
+    )
 
 @router.message(SeekerForm.about)
 async def seeker_about(
@@ -754,27 +828,72 @@ async def vacancy_sphere(callback: CallbackQuery, state: FSMContext) -> None:
 async def vacancy_schedule(callback: CallbackQuery, state: FSMContext) -> None:
     await state.update_data(schedule=callback.data.split(":", 1)[1])
     await state.set_state(VacancyForm.salary)
-    await callback.message.edit_text("💰 Укажите зарплату от и до, например: 250000-300000.")
+
+    await callback.message.edit_text(
+        "💰 Укажите зарплату в тысячах тенге.\n\n"
+        "Примеры:\n"
+        "200\n"
+        "350\n"
+        "500\n\n"
+        "Или диапазон:\n"
+        "200-300\n"
+        "350-500"
+    )
+
     await callback.answer()
 
 
 @router.message(VacancyForm.salary)
 async def vacancy_salary(message: Message, state: FSMContext) -> None:
-    try:
-        salary_min, salary_max = parse_salary_range(message.text or "")
-    except ValueError:
-        await message.answer("❌ Не понял сумму. Напишите диапазон вроде 250000-300000.")
+
+    text = (message.text or "").strip()
+
+    if " " in text and "-" not in text:
+        await message.answer(
+            "❌ Не понял сумму.\n\n"
+            "Введите зарплату в тысячах тенге.\n\n"
+            "Примеры:\n"
+            "200\n"
+            "350\n"
+            "500\n\n"
+            "Или диапазон:\n"
+            "200-300\n"
+            "350-500"
+        )
         return
-    await state.update_data(salary_min=salary_min, salary_max=salary_max)
+
+    try:
+        salary_min, salary_max = parse_salary_range(text)
+
+    except ValueError:
+        await message.answer(
+            "❌ Не понял сумму.\n\n"
+            "Введите зарплату в тысячах тенге.\n\n"
+            "Примеры:\n"
+            "200\n"
+            "350\n"
+            "500\n\n"
+            "Или диапазон:\n"
+            "200-300\n"
+            "350-500"
+        )
+        return
+
+    await state.update_data(
+        salary_min=salary_min,
+        salary_max=salary_max
+    )
+
     await state.set_state(VacancyForm.contacts)
+
     await message.answer(
-    "📞 Как с вами связаться?\n\n"
-    "Укажите телефон, мессенджер и удобное время для связи.\n\n"
-    "Например:\n"
-    "87771234567\n"
-    "WhatsApp\n"
-    "с 09:00 до 18:00"
-)
+        "📞 Как с вами связаться?\n\n"
+        "Укажите телефон, мессенджер и удобное время для связи.\n\n"
+        "Например:\n"
+        "87771234567\n"
+        "WhatsApp\n"
+        "с 09:00 до 18:00"
+    )
 
 
 @router.message(VacancyForm.contacts)
@@ -884,10 +1003,19 @@ async def approve_vacancy(callback: CallbackQuery, repo: SupabaseRepository, set
     )
     
     vacancy = await repo.approve_vacancy(vacancy_id, channel_message.message_id)
+
+    post_url = (
+        f"https://t.me/lisakovsk_job/"
+        f"{channel_message.message_id}"
+    )
+
     await bot.send_message(
         vacancy["employer_id"],
         "✅ Ваша вакансия одобрена и опубликована в канале. Хотите ускорить поиск?",
-        reply_markup=vacancy_paid_features_keyboard(vacancy_id),
+        reply_markup=vacancy_paid_features_keyboard(
+            vacancy_id,
+            post_url
+        )
     )
 
     seekers = await repo.find_matching_seekers(vacancy)
@@ -930,9 +1058,30 @@ async def vacancy_like(callback: CallbackQuery, repo: SupabaseRepository, bot: B
     )
     vacancy = await repo.get_vacancy(vacancy_id)
     seeker = await repo.get_seeker(callback.from_user.id)
+
     if not vacancy or not seeker:
-        await callback.answer("❌ Сначала заполните анкету соискателя.", show_alert=True)
+        await callback.answer(
+            "❌ Сначала заполните анкету соискателя.",
+            show_alert=True
+        )
         return
+    
+    if await repo.has_reacted(
+        vacancy_id,
+        callback.from_user.id
+    ):
+        await callback.answer(
+            "✅ Вы уже откликнулись на эту вакансию.",
+            show_alert=True
+        )
+        return
+
+
+    await repo.set_reaction(
+        vacancy_id,
+        callback.from_user.id,
+        "like"
+    )
 
     await repo.set_reaction(vacancy_id, callback.from_user.id, "like")
     contact = f"@{callback.from_user.username}" if callback.from_user.username else f"telegram id {callback.from_user.id}"
@@ -941,7 +1090,26 @@ async def vacancy_like(callback: CallbackQuery, repo: SupabaseRepository, bot: B
         f"📩 На вашу вакансию откликнулся соискатель:\n\n"
         f"{seeker_card(seeker)}\n\n📞 Контакты: {contact}",
     )
+
+    await callback.message.edit_reply_markup(
+        reply_markup=vacancy_responded_keyboard(
+            vacancy_id
+    )
+)
+
     await callback.answer("✅ Отклик отправлен работодателю!", show_alert=True)
+
+@router.callback_query(
+    F.data.startswith("vacancy_already:")
+)
+async def vacancy_already(
+    callback: CallbackQuery
+) -> None:
+
+    await callback.answer(
+        "✅ Вы уже откликнулись на эту вакансию.",
+        show_alert=True
+    )
 
 
 @router.callback_query(F.data.startswith("vacancy_dislike:"))

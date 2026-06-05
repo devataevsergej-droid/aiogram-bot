@@ -6,11 +6,19 @@ def referral_deep_link(bot_username: str, user_id: int) -> str:
 
 
 def parse_referral_arg(arg: str | None) -> int | None:
-    if not arg or not arg.startswith("ref_"):
+    if not arg:
         return None
-    raw_id = arg.removeprefix("ref_")
+
+    if "_r" in arg:
+        raw_id = arg.split("_r", 1)[1]
+    elif arg.startswith("ref_"):
+        raw_id = arg.removeprefix("ref_")
+    else:
+        return None
+
     if not raw_id.isdigit():
         return None
+
     return int(raw_id)
 
 

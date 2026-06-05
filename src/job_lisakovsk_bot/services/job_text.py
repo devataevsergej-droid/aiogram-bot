@@ -5,20 +5,19 @@ def format_salary(salary_min: int | None, salary_max: int | None) -> str:
     if salary_min is None and salary_max is None:
         return "Не важно"
     if salary_min is not None and salary_max is not None:
-        return f"{salary_min:,} – {salary_max:,} тг".replace(",", " ")
+        return f"{salary_min:,} – {salary_max:,} тыс. тг".replace(",", " ")
     if salary_min is not None:
-        return f"от {salary_min:,} тг".replace(",", " ")
-    return f"до {salary_max:,} тг".replace(",", " ")
+        return f"от {salary_min:,} тыс. тг".replace(",", " ")
+    return f"до {salary_max:,} тыс. тг".replace(",", " ")
 
 
 def vacancy_public_text(vacancy: dict, bot_username: str) -> str:
-    from datetime import datetime
-
     title = vacancy["title"]
 
-    company_name = vacancy.get(
-        "company_name"
-    ) or "Работодатель"
+    company_name = (
+        vacancy.get("company_name")
+        or "Работодатель"
+    )
 
     salary = format_salary(
         vacancy.get("salary_min"),
@@ -29,102 +28,40 @@ def vacancy_public_text(vacancy: dict, bot_username: str) -> str:
     description = vacancy["description"]
     contacts = vacancy["contacts"]
 
-    lower_title = title.lower()
-
-    profession_tags = []
-
-    if "бариста" in lower_title:
-        profession_tags.extend([
-            "#Бариста@LisakovskHub",
-            "#HoReCa@LisakovskHub",
-        ])
-
-    elif "официант" in lower_title:
-        profession_tags.extend([
-            "#Официант@LisakovskHub",
-            "#HoReCa@LisakovskHub",
-        ])
-
-    elif "продав" in lower_title:
-        profession_tags.extend([
-            "#Продавец@LisakovskHub",
-            "#Retail@LisakovskHub",
-        ])
-
-    elif "свар" in lower_title:
-        profession_tags.extend([
-            "#Сварщик@LisakovskHub",
-            "#Стройка@LisakovskHub",
-        ])
-
-    else:
-        profession_tags.append(
-            "#Вакансии@LisakovskHub"
-        )
-
-    schedule_tag = ""
-
-    if "смен" in schedule:
-        schedule_tag = "#СменныйГрафик@LisakovskHub"
-
-    elif "полный" in schedule:
-        schedule_tag = "#ПолныйДень@LisakovskHub"
-
-    elif "подработ" in schedule:
-        schedule_tag = "#Подработка@LisakovskHub"
-
-    month_names = {
-        1: "Январь",
-        2: "Февраль",
-        3: "Март",
-        4: "Апрель",
-        5: "Май",
-        6: "Июнь",
-        7: "Июль",
-        8: "Август",
-        9: "Сентябрь",
-        10: "Октябрь",
-        11: "Ноябрь",
-        12: "Декабрь",
-    }
-
-    now = datetime.now()
-
-    date_tag = (
-        f"#{month_names[now.month]}"
-        f"{now.year}@LisakovskHub"
-    )
-
-    tags = profession_tags + [
-        schedule_tag,
-        date_tag,
-        "#Работа@LisakovskHub",
-    ]
-
-    tags = [tag for tag in tags if tag]
-
-    hashtags = " ".join(tags)
-
     return (
         f"🏢 {company_name}\n\n"
-        f"📌 {title}\n\n"
-        f"💰 {salary}\n"
-        f"📍 Лисаковск\n"
-        f"🕒 {schedule.capitalize()}\n\n"
-        f"📝 {description}\n\n"
-        f"📲 Контакты:\n{contacts}\n\n"
-        f"{hashtags}\n\n"
-        f"Разместить свою вакансию: @{bot_username}"
+        f"📍 Лисаковск\n\n"
+        f"💼 Требуется:\n"
+        f"{title}\n\n"
+        f"💰 Зарплата:\n"
+        f"{salary}\n\n"
+        f"🕒 График:\n"
+        f"{schedule.capitalize()}\n\n"
+        f"📋 Обязанности:\n"
+        f"{description}\n\n"
+        f"📞 Контакты:\n"
+        f"{contacts}\n\n"
+        f"#Май2026@LisakovskHub #Работа@LisakovskHub\n\n"
+        f"Разместить свою вакансию:\n"
+        f"@{bot_username}"
     )
 
 
 def vacancy_private_text(vacancy: dict, bot_username: str) -> str:
-    return vacancy_public_text(vacancy, bot_username) + "\n\nЕсли вакансия интересна — нажмите «Откликнуться»."
+    return (
+        vacancy_public_text(vacancy, bot_username)
+        + "\n\nЕсли вакансия интересна — нажмите «Откликнуться»."
+    )
 
 
 def seeker_card(seeker: dict, number: int | None = None) -> str:
     prefix = f"Соискатель #{number}" if number is not None else "Соискатель"
-    salary = format_salary(seeker.get("salary_min"), seeker.get("salary_max"))
+
+    salary = format_salary(
+        seeker.get("salary_min"),
+        seeker.get("salary_max")
+    )
+
     return (
         f"{prefix}\n"
         f"Сфера: {seeker['sphere']}\n"
@@ -141,6 +78,7 @@ def admin_stats_text(stats: dict) -> str:
         f"Активных вакансий: {stats['active_vacancies']}\n"
         f"Закрыто вакансий: {stats['closed_vacancies']}\n"
         f"Нашли работу через бота: {stats['found_work']}\n"
+        f"👥 Рефералов: {stats['referrals_total']}\n"
         f"Платных пользователей: {stats['paid_users']}\n"
         f"Заработано Stars: {stats['stars_earned']}"
     )
@@ -158,8 +96,17 @@ def employer_stats_text(stats: dict) -> str:
 
 
 def seeker_stats_text(stats: dict) -> str:
-    status = f"VIP до {stats['vip_until']}" if stats.get("vip_until") else "Обычный"
-    created_at = stats.get("created_at") or "анкета ещё не создана"
+    status = (
+        f"VIP до {stats['vip_until']}"
+        if stats.get("vip_until")
+        else "Обычный"
+    )
+
+    created_at = (
+        stats.get("created_at")
+        or "анкета ещё не создана"
+    )
+
     return (
         "👤 Ваш кабинет соискателя\n\n"
         f"Дата создания анкеты: {created_at}\n"
@@ -171,12 +118,17 @@ def seeker_stats_text(stats: dict) -> str:
 
 
 def weekly_stats_text(stats: dict) -> str:
-    top_employers = stats.get("top_employers") or ["пока нет данных"]
+    top_employers = (
+        stats.get("top_employers")
+        or ["пока нет данных"]
+    )
+
     return (
         "📊 Итоги недели в «Работа Лисаковск»\n\n"
         f"Новых соискателей: {stats['new_seekers']}\n"
         f"Новых вакансий: {stats['new_vacancies']}\n"
         f"Нашли работу через бота: {stats['found_work']}\n"
         f"Самая популярная сфера: {stats['popular_sphere']}\n"
-        "Топ-3 работодателя по откликам:\n- " + "\n- ".join(top_employers)
+        "Топ-3 работодателя по откликам:\n- "
+        + "\n- ".join(top_employers)
     )

@@ -140,6 +140,36 @@ def vacancies_keyboard(vacancy_id: int) -> InlineKeyboardMarkup:
     )
 
 
+def vacancy_responded_keyboard(
+    vacancy_id: int
+) -> InlineKeyboardMarkup:
+
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+
+            [
+                InlineKeyboardButton(
+                    text="✅ Вы откликнулись",
+                    callback_data=f"vacancy_already:{vacancy_id}"
+                ),
+            ],
+
+            [
+                InlineKeyboardButton(
+                    text="🙈 Скрыть",
+                    callback_data=f"vacancy_dislike:{vacancy_id}"
+                ),
+            ],
+
+            [
+                InlineKeyboardButton(
+                    text="⚠️ Пожаловаться",
+                    callback_data=f"vacancy_complain:{vacancy_id}"
+                ),
+            ],
+        ]
+    )
+
 def moderation_keyboard(vacancy_id: int) -> InlineKeyboardMarkup:
 
     return InlineKeyboardMarkup(
@@ -160,11 +190,19 @@ def moderation_keyboard(vacancy_id: int) -> InlineKeyboardMarkup:
 
 
 def vacancy_paid_features_keyboard(
-    vacancy_id: int
+    vacancy_id: int,
+    post_url: str
 ) -> InlineKeyboardMarkup:
 
     return InlineKeyboardMarkup(
         inline_keyboard=[
+
+            [
+                InlineKeyboardButton(
+                    text="👀 Посмотреть вакансию",
+                    url=post_url
+                )
+            ],
 
             [
                 InlineKeyboardButton(
