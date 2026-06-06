@@ -27,10 +27,12 @@ from job_lisakovsk_bot.keyboards.job_inline import (
     buy_unlimited_keyboard,
     channel_post_keyboard,
     employer_feedback_keyboard,
+    employer_cabinet_keyboard,
     main_menu,
     manual_payment_keyboard,
     moderation_keyboard,
     schedules_keyboard,
+    seeker_cabinet_keyboard,
     seeker_feedback_keyboard,
     seeker_vip_keyboard,
     spheres_keyboard,
@@ -157,13 +159,31 @@ async def toggle_role(message: Message, repo: SupabaseRepository):
 
 class SeekerForm(StatesGroup):
 
+    intro = State()
+
     full_name = State()
+    age = State()
+    phone = State()
+
+    desired_positions = State()
+    skills = State()
+
+    salary = State()
+    schedule = State()
+
+    rotation_work = State()
+    driver_license = State()
+
+    city = State()
+
+    about = State()
+
     contacts = State()
 
+    confirm = State()
+
+    # legacy
     sphere = State()
-    schedule = State()
-    salary = State()
-    about = State()
 
 
 class VacancyForm(StatesGroup):
@@ -537,13 +557,43 @@ async def seeker_start(
     await state.clear()
 
     await state.set_state(
+        SeekerForm.intro
+    )
+
+    await message.answer(
+        "⚠️ Важно!\n\n"
+        "Качество подбора вакансий зависит прежде всего от двух полей:\n\n"
+        "🎯 Желаемые должности\n"
+        "🏷 Ключевые навыки\n\n"
+        "Именно по ним система:\n"
+        "• подбирает вакансии\n"
+        "• рекомендует вашу анкету работодателям\n"
+        "• делает рассылки\n"
+        "• показывает подходящие предложения\n\n"
+        "❗ Указывайте несколько вариантов через запятую.\n\n"
+        "Например:\n"
+        "Продавец, Кассир, Администратор\n\n"
+        "Нажмите:\n"
+        "Продолжить"
+    )
+
+
+@router.message(
+    SeekerForm.intro,
+    F.text.casefold() == "продолжить"
+)
+async def seeker_intro_continue(
+    message: Message,
+    state: FSMContext
+) -> None:
+
+    await state.set_state(
         SeekerForm.full_name
     )
 
     await message.answer(
         "👤 Как к вам обращаться?"
     )
-
 
 
 @router.message(SeekerForm.full_name)
@@ -553,42 +603,198 @@ async def seeker_full_name(
 ) -> None:
 
     await state.update_data(
-        full_name=message.text
+        full_name=(message.text or "").strip()
     )
 
     await state.set_state(
-        SeekerForm.contacts
+        SeekerForm.age
     )
 
     await message.answer(
-        "📞 Оставьте контакты и удобное время для связи.\n\n"
+        "🎂 Сколько вам лет?\n\n"
         "Например:\n"
-        "87775556644\n"
-        "с 11 до 17\n"
-        "WhatsApp или личные сообщения"
+        "18\n"
+        "25\n"
+        "42"
     )
 
-
-@router.message(SeekerForm.contacts)
-async def seeker_contacts(
+@router.message(SeekerForm.age)
+async def seeker_age(
     message: Message,
     state: FSMContext
 ) -> None:
 
+    try:
+
+        age = int(message.text)
+
+        if age < 14 or age > 100:
+
+            await message.answer(
+                "❌ Укажите возраст числом от 14 до 100."
+            )
+
+            return
+
+        await state.update_data(
+            age=age
+        )
+
+        await state.set_state(
+            SeekerForm.phone
+        )
+
+        await message.answer(
+            "📱 Укажите номер телефона для связи.\n\n"
+            "Например:\n"
+            "87775556644"
+        )
+
+    except ValueError:
+
+        await message.answer(
+            "❌ Возраст нужно указать числом.\n\n"
+            "Например:\n"
+            "25"
+        )
+
+
+@router.message(SeekerForm.phone)
+async def seeker_phone(
+    message: Message,
+    state: FSMContext
+) -> None:
+
+    phone = (message.text or "").strip()
+
+    if len(phone) < 10:
+
+        await message.answer(
+            "❌ Укажите корректный номер телефона."
+        )
+
+        return
+
     await state.update_data(
-        contacts=message.text
+        phone=phone
     )
 
     await state.set_state(
-        SeekerForm.sphere
+        SeekerForm.desired_positions
     )
 
     await message.answer(
-        "📂 Выберите сферу:",
-        reply_markup=spheres_keyboard(
-            "seeker_sphere"
-        )
+        "🎯 Желаемые должности\n\n"
+        "Укажите несколько вариантов через запятую.\n\n"
+        "Например:\n"
+        "Продавец, Кассир, Администратор"
     )
+
+
+@router.message(SeekerForm.desired_positions)
+async def seeker_desired_positions(
+    message: Message,
+    state: FSMContext
+) -> None:
+
+    text = (message.text or "").strip()
+
+    bad_values = {
+        "любая",
+        "любая работа",
+        "ищу работу",
+        "без разницы"
+    }
+
+    if text.lower() in bad_values:
+
+        await message.answer(
+            "⚠️ Укажите конкретные должности.\n\n"
+            "Например:\n"
+            "Продавец, Кассир, Администратор"
+        )
+
+        return
+
+    await state.update_data(
+        desired_positions=text
+    )
+
+    await state.set_state(
+        SeekerForm.skills
+    )
+
+    await message.answer(
+        "🏷 Ключевые навыки\n\n"
+        "Укажите навыки через запятую.\n\n"
+        "Например:\n"
+        "1С, Excel, Продажи, Работа с клиентами"
+    )
+
+@router.message(SeekerForm.skills)
+async def seeker_skills(
+    message: Message,
+    state: FSMContext
+) -> None:
+
+    text = (message.text or "").strip()
+
+    bad_values = {
+        "есть опыт",
+        "все умею",
+        "всё умею",
+        "много чего"
+    }
+
+    if text.lower() in bad_values:
+
+        await message.answer(
+            "⚠️ Перечислите конкретные навыки.\n\n"
+            "Например:\n"
+            "1С, Excel, Продажи"
+        )
+
+        return
+
+    await state.update_data(
+        skills=text
+    )
+
+    await state.set_state(
+        SeekerForm.salary
+    )
+
+    await message.answer(
+        "💰 Укажите желаемую зарплату.\n\n"
+        "Например:\n"
+        "250000\n"
+        "300000\n\n"
+        "Или напишите:\n"
+        "Пропустить"
+    )
+
+
+
+#@router.message(SeekerForm.contacts)
+#async def seeker_contacts(
+#    message: Message,
+#    state: FSMContext
+#) -> None:
+#
+#    await state.update_data(
+#        contacts=message.text
+#    )
+#
+#    await state.set_state(
+#        SeekerForm.sphere
+#    )
+#
+#    await message.answer(
+#        "📂 Выберите сферу:",
+#        reply_markup=spheres_keyboard(
+#            "seeker_sphere"
+#        )
+#    )
 
 
 @router.callback_query(SeekerForm.sphere, F.data.startswith("seeker_sphere:"))
@@ -599,64 +805,185 @@ async def seeker_sphere(callback: CallbackQuery, state: FSMContext) -> None:
     await callback.answer()
 
 
-@router.callback_query(SeekerForm.schedule, F.data.startswith("seeker_schedule:"))
-async def seeker_schedule(callback: CallbackQuery, state: FSMContext) -> None:
-    await state.update_data(schedule=callback.data.split(":", 1)[1])
-    await state.set_state(SeekerForm.salary)
-    await callback.message.edit_text(
-        "💰 Укажите желаемую зарплату в тысячах тенге.\n\n"
-        "Примеры:\n"
-        "200-300\n"
-        "350-500\n\n"
-        "Если не важно — напишите «Не важно»."
+@router.message(SeekerForm.schedule)
+async def seeker_schedule(
+    message: Message,
+    state: FSMContext
+) -> None:
+
+    schedule = (message.text or "").strip()
+
+    await state.update_data(
+        schedule=schedule
     )
-    await callback.answer()
+
+    await state.set_state(
+        SeekerForm.rotation_work
+    )
+
+    await message.answer(
+        "🚗 Готовы работать вахтовым методом?\n\n"
+        "Ответьте:\n"
+        "Да\n"
+        "Нет\n"
+        "Рассмотрю"
+    )
+
+@router.message(SeekerForm.rotation_work)
+async def seeker_rotation_work(
+    message: Message,
+    state: FSMContext
+) -> None:
+
+    value = (message.text or "").strip()
+
+    await state.update_data(
+        rotation_work=value
+    )
+
+    await state.set_state(
+        SeekerForm.driver_license
+    )
+
+    await message.answer(
+        "🚘 Есть водительское удостоверение?\n\n"
+        "Например:\n"
+        "Нет\n"
+        "Категория B\n"
+        "Категория C\n"
+        "Категория CE"
+    )
+
+@router.message(SeekerForm.driver_license)
+async def seeker_driver_license(
+    message: Message,
+    state: FSMContext
+) -> None:
+
+    await state.update_data(
+        driver_license=(message.text or "").strip()
+    )
+
+    await state.set_state(
+        SeekerForm.city
+    )
+
+    await message.answer(
+        "📍 В каком городе вы ищете работу?\n\n"
+        "Например:\n"
+        "Лисаковск"
+    )
+
+@router.message(SeekerForm.city)
+async def seeker_city(
+    message: Message,
+    state: FSMContext
+) -> None:
+
+    await state.update_data(
+        city=(message.text or "").strip()
+    )
+
+    await state.set_state(
+        SeekerForm.about
+    )
+
+    await message.answer(
+        "📝 Расскажите немного о себе.\n\n"
+        "Опыт работы, сильные стороны,\n"
+        "дополнительная информация."
+    )
+
 
 
 @router.message(SeekerForm.salary)
-async def seeker_salary(message: Message, state: FSMContext) -> None:
-    text = message.text or ""
+async def seeker_salary(
+    message: Message,
+    state: FSMContext
+) -> None:
 
-    if text.lower() in ["не важно", "договорная", "договор"]:
+    text = (message.text or "").strip()
+
+    if text.lower() == "пропустить":
+
         await state.update_data(
             salary_min=None,
-            salary_max=None,
-            salary_text="Договорная"
+            salary_max=None
         )
 
     else:
+
         try:
-            salary_min, salary_max = parse_salary_range(text)
+
+            salary = int(
+                text.replace(" ", "")
+            )
+
+            if salary < 50000:
+
+                await message.answer(
+                    "❌ Укажите зарплату числом.\n\n"
+                    "Например:\n"
+                    "250000"
+                )
+
+                return
 
             await state.update_data(
-                salary_min=salary_min,
-                salary_max=salary_max,
-                salary_text=f"{salary_min}-{salary_max} тыс. тг"
+                salary_min=salary,
+                salary_max=salary
             )
 
         except ValueError:
+
             await message.answer(
-                "❌ Не понял сумму.\n\n"
-                "Введите диапазон в тысячах тенге.\n\n"
-                "Примеры:\n"
-                "200-300\n"
-                "350-500\n\n"
+                "❌ Укажите зарплату числом.\n\n"
+                "Например:\n"
+                "250000\n\n"
                 "Или напишите:\n"
-                "Не важно\n"
-                "Договорная"
+                "Пропустить"
             )
+
             return
 
-    await state.set_state(SeekerForm.about)
+    await state.set_state(
+        SeekerForm.schedule
+    )
 
     await message.answer(
-        "📝 Коротко о себе одним предложением.\n\n"
+        "🕒 Какой график вас интересует?\n\n"
         "Например:\n"
-        "Сварщик с опытом 5 лет, есть свой инструмент."
+        "Полный день\n"
+        "Сменный\n"
+        "Гибкий\n"
+        "Удалённо"
     )
 
 @router.message(SeekerForm.about)
 async def seeker_about(
+    message: Message,
+    state: FSMContext
+) -> None:
+
+    await state.update_data(
+        about=(message.text or "").strip()
+    )
+
+    await state.set_state(
+        SeekerForm.contacts
+    )
+
+    await message.answer(
+        "📞 Как с вами удобнее связаться?\n\n"
+        "Например:\n"
+        "WhatsApp\n"
+        "Telegram\n"
+        "Телефон\n"
+        "Любой способ"
+    )
+
+@router.message(SeekerForm.contacts)
+async def seeker_contacts_finish(
     message: Message,
     state: FSMContext,
     repo: SupabaseRepository
@@ -664,34 +991,43 @@ async def seeker_about(
 
     try:
 
-        data = await state.get_data()
-
-        referred_by = await repo.get_referrer_for_user(
-            message.from_user.id
+        await state.update_data(
+            contacts=(message.text or "").strip()
         )
+
+        data = await state.get_data()
 
         payload = {
             "user_id": message.from_user.id,
             "username": message.from_user.username,
 
             "full_name": data.get("full_name"),
+            "age": data.get("age"),
+            "phone": data.get("phone"),
+
+            "desired_positions": data.get("desired_positions"),
+            "skills": data.get("skills"),
+
+            "salary_min": data.get("salary_min"),
+            "salary_max": data.get("salary_max"),
+
+            "schedule": data.get("schedule"),
+
+            "rotation_work": data.get("rotation_work"),
+            "driver_license": data.get("driver_license"),
+
+            "city": data.get("city"),
+
+            "about": data.get("about"),
             "contacts": data.get("contacts"),
 
-            "sphere": data["sphere"],
-            "schedule": data["schedule"],
-
-            "salary_min": data["salary_min"],
-            "salary_max": data["salary_max"],
-
-            "about": (message.text or "").strip(),
-
             "active": True,
+            "profile_completed": True,
         }
 
-        if referred_by is not None:
-            payload["referred_by"] = referred_by
-
-        await repo.upsert_seeker(payload)
+        await repo.upsert_seeker(
+            payload
+        )
 
         await repo.set_user_active_role(
             message.from_user.id,
@@ -701,22 +1037,20 @@ async def seeker_about(
         await state.clear()
 
         await message.answer(
-            "✅ Ты в базе! Когда появится подходящая вакансия — я пришлю уведомление.\n"
-            "Пока можешь посмотреть открытые вакансии.",
-
+            "✅ Анкета успешно сохранена.",
             reply_markup=main_menu(
-            user_role="seeker"
+                user_role="seeker"
             )
         )
 
     except Exception as e:
 
         logger.error(
-            f"Error in seeker_about: {e}"
+            f"Error in seeker_contacts_finish: {e}"
         )
 
         await message.answer(
-            "❌ Ошибка при сохранении анкеты. Попробуйте позже."
+            "❌ Ошибка при сохранении анкеты."
         )
 
 
@@ -1621,7 +1955,10 @@ async def my_stats(
                     f"{stats.get('responses', 0)}"
                 )
 
-                await message.answer(text)
+                await message.answer(
+    text,
+    reply_markup=employer_cabinet_keyboard()
+)
 
             except Exception as e:
 
@@ -1632,9 +1969,7 @@ async def my_stats(
                 await message.answer(
     "⚠️ Статистика работодателя временно недоступна.\n\n"
     "Но ваши вакансии продолжают работать 🙂",
-    reply_markup=main_menu(
-        user_role=user_role
-    )
+    reply_markup=employer_cabinet_keyboard()
 )
 
             return
@@ -1678,9 +2013,7 @@ async def my_stats(
 
             await message.answer(
     text,
-    reply_markup=main_menu(
-        user_role=user_role
-    )
+    reply_markup=seeker_cabinet_keyboard()
 )
 
         except Exception as e:
@@ -1702,6 +2035,31 @@ async def my_stats(
         await message.answer(
             "❌ Ошибка загрузки кабинета."
         )
+
+
+@router.message(F.text == "📝 Моя анкета")
+async def my_resume(
+    message: Message,
+    repo: SupabaseRepository
+) -> None:
+
+    seeker = await repo.get_seeker(
+        message.from_user.id
+    )
+
+    if not seeker:
+
+        await message.answer(
+            "❌ Анкета пока не заполнена."
+        )
+
+        return
+
+    await message.answer(
+    text,
+    reply_markup=seeker_resume_keyboard()
+)
+
 
 @router.message(F.text == "📨 Отклики")
 async def employer_responses(
@@ -1845,6 +2203,24 @@ async def admin_stats(message: Message, repo: SupabaseRepository, settings: Sett
         await message.answer("⛔ Команда доступна только в админ-чате.")
         return
     await message.answer(admin_stats_text(await repo.admin_stats()))
+
+@router.message(F.text == "⬅️ Назад")
+async def back_to_main_menu(
+    message: Message,
+    repo: SupabaseRepository
+) -> None:
+
+    user_role = await get_user_role(
+        message.from_user.id,
+        repo
+    )
+
+    await message.answer(
+        "🏠 Главное меню",
+        reply_markup=main_menu(
+            user_role=user_role
+        )
+    )
 
 @router.message(F.text == "📊 Админ-статистика")
 async def admin_stats_button(

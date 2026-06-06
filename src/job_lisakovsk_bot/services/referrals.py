@@ -22,19 +22,50 @@ def parse_referral_arg(arg: str | None) -> int | None:
     return int(raw_id)
 
 
-def referral_bonus_text(referrals_count: int) -> str:
-    bonuses = []
+def referral_bonus_text(
+    referrals_count: int
+) -> str:
+
+    progress = []
+
     if referrals_count >= 1:
-        bonuses.append("+1 бесплатная вакансия в месяц")
+        progress.append(
+            "✅ 1 приглашённый → бесплатное поднятие анкеты"
+        )
+
     if referrals_count >= 3:
-        bonuses.append("до 5 уведомлений в день")
+        progress.append(
+            "✅ 3 приглашённых → 5 уведомлений в день"
+        )
+
     if referrals_count >= 5:
-        bonuses.append("1 срочная рассылка бесплатно в месяц")
+        progress.append(
+            "✅ 5 приглашённых → 1 бесплатная срочная рассылка в месяц"
+        )
+
     if referrals_count >= 10:
-        bonuses.append("VIP на месяц бесплатно")
-    if not bonuses:
-        return "Пока бонусов нет. Пригласи 1 друга, чтобы получить +1 бесплатную вакансию в месяц."
-    return "Доступные бонусы:\n- " + "\n- ".join(bonuses)
+        progress.append(
+            "✅ 10 приглашённых → VIP на 30 дней"
+        )
+
+    return (
+        "🎁 Реферальные бонусы\n\n"
+
+        f"👥 Приглашено: {referrals_count}\n\n"
+
+        "Как начисляются рефералы:\n"
+        "• Соискатель должен заполнить анкету\n"
+        "• Работодатель должен разместить вакансию\n\n"
+
+        "Доступные бонусы:\n"
+        f"{chr(10).join(progress) if progress else 'Пока бонусов нет'}\n\n"
+
+        "Следующие цели:\n"
+        f"{'🎯 Пригласите 1 пользователя для первого бонуса' if referrals_count < 1 else ''}"
+        f"{'🎯 3 приглашённых → 5 уведомлений в день' if referrals_count < 3 else ''}"
+        f"{'🎯 5 приглашённых → бесплатная срочная рассылка' if 3 <= referrals_count < 5 else ''}"
+        f"{'🎯 10 приглашённых → VIP на 30 дней' if 5 <= referrals_count < 10 else ''}"
+    )
 
 
 def has_free_vip_bonus(referrals_count: int) -> bool:

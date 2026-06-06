@@ -42,6 +42,10 @@ def main_menu(
             ],
 
             [
+                KeyboardButton(text="📝 Заполнить анкету")
+            ],
+
+            [
                 KeyboardButton(text="👤 Личный кабинет")
             ],
 
@@ -466,4 +470,71 @@ def employer_candidates_keyboard(
                 )
             ]
         ]
+    )
+
+def seeker_cabinet_keyboard() -> ReplyKeyboardMarkup:
+
+    return ReplyKeyboardMarkup(
+        keyboard=[
+
+            [
+                KeyboardButton(
+                    text="📝 Моя анкета"
+                )
+            ],
+
+            [
+                KeyboardButton(
+                    text="📈 Продвигать анкету"
+                )
+            ],
+
+            [
+                KeyboardButton(
+                    text="👥 Пригласить друга"
+                )
+            ],
+
+            [
+                KeyboardButton(
+                    text="⬅️ Назад"
+                )
+            ],
+
+        ],
+        resize_keyboard=True,
+    )
+
+
+def employer_cabinet_keyboard() -> ReplyKeyboardMarkup:
+
+    return ReplyKeyboardMarkup(
+        keyboard=[
+
+            [
+                KeyboardButton(
+                    text="📋 Мои вакансии"
+                )
+            ],
+
+            [
+                KeyboardButton(
+                    text="📨 Отклики"
+                )
+            ],
+
+            [
+                KeyboardButton(
+                    text="📣 Поделиться проектом"
+                )
+            ],
+
+            [
+                KeyboardButton(
+                    text="⬅️ Назад"
+                )
+            ],
+
+        ],
+        resize_keyboard=True,
     )

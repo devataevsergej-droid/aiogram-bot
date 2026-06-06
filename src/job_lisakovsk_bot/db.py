@@ -698,9 +698,12 @@ class SupabaseRepository:
                     .execute()
                 )
 
-            notifications_result, likes_result = await asyncio.gather(
-                self._run(notifications),
-                self._run(likes)
+            notifications_result = await self._run(
+                notifications
+            )
+
+            likes_result = await self._run(
+                likes
             )
 
             return {
