@@ -720,7 +720,8 @@ async def seeker_about(
         )
 
 
-@router.message(F.text.in_({"🔍 Смотреть вакансии", "/vacancies"}))
+"""
+# @router.message(F.text.in_({"🔍 Смотреть вакансии", "/vacancies"}))
 async def show_vacancies(
     message: Message,
     repo: SupabaseRepository,
@@ -761,6 +762,7 @@ async def show_vacancies(
         await message.answer(
             "❌ Ошибка при загрузке вакансий."
         )
+        """
 
 
 @router.message(F.text == "📢 Разместить вакансию")
@@ -1475,31 +1477,66 @@ async def manual_payment_reject(callback: CallbackQuery, repo: SupabaseRepositor
     await callback.answer()
 
 
-@router.message(F.text == "👥 Пригласить друга")
+@router.message(
+    F.text.in_(
+        {
+            "👥 Пригласить друга",
+            "📣 Поделиться проектом"
+        }
+    )
+)
 @router.message(Command("invite"))
-async def invite_friend(message: Message, repo: SupabaseRepository, settings: Settings) -> None:
-    referrals_count = await repo.count_referrals(message.from_user.id)
-    link = referral_deep_link(settings.bot_username, message.from_user.id)
+async def invite_friend(
+    message: Message,
+    repo: SupabaseRepository,
+    settings: Settings
+) -> None:
+
+    referrals_count = await repo.count_referrals(
+        message.from_user.id
+    )
+
+    link = referral_deep_link(
+        settings.bot_username,
+        message.from_user.id
+    )
+
     await message.answer(
-        f"🔗 Ваша ссылка для приглашения:\n`{link}`\n\n"
-        f"👥 Приглашено друзей: {referrals_count}\n"
+        f"🔗 Ваша ссылка для приглашения:\n"
+        f"`{link}`\n\n"
+
+        f"👥 Приглашено друзей: {referrals_count}\n\n"
+
         f"{referral_bonus_text(referrals_count)}",
+
         parse_mode="Markdown"
     )
 
-@router.message(F.text == "📺 Наш канал")
-async def our_channel(message: Message, settings: Settings):
+@router.message(
+    F.text.in_(
+        {
+            "🔍 Смотреть вакансии",
+            "📺 Лента вакансий"
+        }
+    )
+)
+async def our_channel(
+    message: Message,
+    settings: Settings
+):
     await message.answer(
-        "📢 *Подписывайтесь на наш канал!*\n\n"
-        "Там публикуются все свежие вакансии и полезные новости.\n\n"
-        "Нажмите на кнопку ниже, чтобы перейти 👇",
+        "📢 *Лента вакансий Лисаковска*\n\n"
+        "Все новые вакансии публикуются в нашем канале.\n\n"
+        "Нажмите кнопку ниже 👇",
         parse_mode="Markdown",
         reply_markup=InlineKeyboardMarkup(
             inline_keyboard=[
-                [InlineKeyboardButton(
-                    text="📱 Перейти в канал",
-                    url="https://t.me/lisakovsk_job"
-                )]
+                [
+                    InlineKeyboardButton(
+                        text="📱 Открыть ленту вакансий",
+                        url="https://t.me/lisakovsk_job"
+                    )
+                ]
             ]
         )
     )
@@ -1808,6 +1845,23 @@ async def admin_stats(message: Message, repo: SupabaseRepository, settings: Sett
         await message.answer("⛔ Команда доступна только в админ-чате.")
         return
     await message.answer(admin_stats_text(await repo.admin_stats()))
+
+@router.message(F.text == "📊 Админ-статистика")
+async def admin_stats_button(
+    message: Message,
+    repo: SupabaseRepository,
+    settings: Settings,
+) -> None:
+
+    if message.chat.id != settings.admin_chat_id:
+        return
+
+    await message.answer(
+        admin_stats_text(
+            await repo.admin_stats()
+        )
+    )
+
 
 @router.callback_query(F.data.startswith("hide_post:"))
 async def hide_post(callback: CallbackQuery) -> None:

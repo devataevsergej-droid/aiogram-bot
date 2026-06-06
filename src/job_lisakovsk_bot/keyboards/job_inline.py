@@ -18,47 +18,78 @@ from job_lisakovsk_bot.constants import (
 )
 
 
-def main_menu(user_role: str = None) -> ReplyKeyboardMarkup:
+def main_menu(
+    user_role: str = None,
+    is_admin: bool = False
+) -> ReplyKeyboardMarkup:
 
     keyboard = []
 
-    # Главная кнопка по роли
-    if user_role == "employer":
+    # Кнопка админа
+    if is_admin:
 
         keyboard.append([
-            KeyboardButton(text="📢 Разместить вакансию"),
-            KeyboardButton(text="📨 Отклики")
+            KeyboardButton(text="📊 Админ-статистика")
         ])
 
-    elif user_role == "seeker":
+    # Соискатель
+    if user_role == "seeker":
 
-        keyboard.append([
-            KeyboardButton(text="📝 Заполнить анкету")
+        keyboard.extend([
+
+            [
+                KeyboardButton(text="📺 Лента вакансий")
+            ],
+
+            [
+                KeyboardButton(text="👤 Личный кабинет")
+            ],
+
+            [
+                KeyboardButton(text="👥 Пригласить друга")
+            ],
+
         ])
 
+    # Работодатель
+    elif user_role == "employer":
+
+        keyboard.extend([
+
+            [
+                KeyboardButton(text="📢 Разместить вакансию")
+            ],
+
+            [
+                KeyboardButton(text="👤 Личный кабинет")
+            ],
+
+            [
+                KeyboardButton(text="📺 Лента вакансий")
+            ],
+
+        ])
+
+    # Новый пользователь
     else:
 
-        keyboard.append([
-            KeyboardButton(text="📢 Разместить вакансию"),
-            KeyboardButton(text="📝 Заполнить анкету")
+        keyboard.extend([
+
+            [
+                KeyboardButton(text="📢 Разместить вакансию")
+            ],
+
+            [
+                KeyboardButton(text="📝 Заполнить анкету")
+            ],
+
+            [
+                KeyboardButton(text="📺 Лента вакансий")
+            ],
+
         ])
 
-    # Основное меню
-    keyboard.extend([
-
-        [
-            KeyboardButton(text="🔍 Смотреть вакансии"),
-            KeyboardButton(text="👥 Пригласить друга")
-        ],
-
-        [
-            KeyboardButton(text="👤 Личный кабинет"),
-            KeyboardButton(text="📺 Наш канал")
-        ],
-
-    ])
-
-    # Кнопка переключения роли
+    # Переключение роли
     if user_role:
 
         toggle_text = (
