@@ -49,6 +49,103 @@ class SupabaseRepository:
         result = await self._run(query)
         return result.data[0]
 
+    async def create_company(
+        self,
+        payload: dict[str, Any]
+    ) -> dict[str, Any]:
+
+        def query():
+            return (
+                self.client
+                .table("companies")
+                .insert(payload)
+                .execute()
+            )
+
+        result = await self._run(query)
+
+        return result.data[0]    
+    
+    async def get_company_by_owner(
+        self,
+        owner_id: int
+    ) -> dict[str, Any] | None:
+
+        def query():
+            return (
+                self.client
+                .table("companies")
+                .select("*")
+                .eq("owner_id", owner_id)
+                .maybe_single()
+                .execute()
+            )
+
+        result = await self._run(query)
+
+        if not result or not result.data:
+            return None
+
+        return result.data
+    
+    async def update_company(
+        self,
+        company_id: int,
+        payload: dict[str, Any]
+    ) -> dict[str, Any]:
+
+        def query():
+            return (
+                self.client
+                .table("companies")
+                .update(payload)
+                .eq("id", company_id)
+                .execute()
+            )
+
+        result = await self._run(query)
+
+        return result.data[0]
+
+    async def create_company(
+        self,
+        payload: dict[str, Any]
+    ) -> dict[str, Any]:
+
+        def query():
+            return (
+                self.client
+                .table("companies")
+                .insert(payload)
+                .execute()
+            )
+
+        result = await self._run(query)
+
+        return result.data[0]
+    
+    async def get_company_by_owner(
+        self,
+        owner_id: int
+    ) -> dict[str, Any] | None:
+
+        def query():
+            return (
+                self.client
+                .table("companies")
+                .select("*")
+                .eq("owner_id", owner_id)
+                .limit(1)
+                .execute()
+            )
+
+        result = await self._run(query)
+
+        if not result.data:
+            return None
+
+        return result.data[0]
+
     async def get_vacancy(self, vacancy_id: int) -> dict[str, Any] | None:
         def query():
             return self.client.table("job_vacancies").select("*").eq("id", vacancy_id).maybe_single().execute()
@@ -84,6 +181,31 @@ class SupabaseRepository:
         if not result or not result.data:
             return None
         return result.data[0]
+
+    async def update_vacancy_field(
+    self,
+    vacancy_id: int,
+    employer_id: int,
+    field: str,
+    value: Any
+) -> dict[str, Any] | None:
+
+        def query():
+            return (
+                self.client.table("job_vacancies")
+                .update({field: value})
+                .eq("id", vacancy_id)
+                .eq("employer_id", employer_id)
+                .execute()
+            )
+
+        result = await self._run(query)
+
+        if not result or not result.data:
+            return None
+
+        return result.data[0]    
+
 
     async def reject_vacancy(self, vacancy_id: int, reason: str = "Не прошла модерацию") -> dict[str, Any] | None:
         def query():

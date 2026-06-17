@@ -5,6 +5,11 @@ from aiogram.types import (
     ReplyKeyboardMarkup,
 )
 
+from aiogram.types import (
+    InlineKeyboardMarkup,
+    InlineKeyboardButton,
+)
+
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from job_lisakovsk_bot.constants import (
@@ -38,10 +43,7 @@ def main_menu(
         keyboard.extend([
 
             [
-                KeyboardButton(text="📺 Лента вакансий")
-            ],
-
-            [
+                KeyboardButton(text="📺 Лента вакансий"),
                 KeyboardButton(text="📝 Заполнить анкету")
             ],
 
@@ -69,7 +71,7 @@ def main_menu(
             ],
 
             [
-                KeyboardButton(text="📺 Лента вакансий")
+                KeyboardButton(text="📣 Поделиться проектом")
             ],
 
         ])
@@ -457,6 +459,8 @@ def weekly_stats_keyboard(
         ]
     )
 
+
+
 def employer_candidates_keyboard(
     vacancy_id: int
 ) -> InlineKeyboardMarkup:
@@ -513,19 +517,16 @@ def employer_cabinet_keyboard() -> ReplyKeyboardMarkup:
 
             [
                 KeyboardButton(
+                    text="🏢 Моя компания"
+                ),
+                KeyboardButton(
                     text="📋 Мои вакансии"
                 )
             ],
 
             [
                 KeyboardButton(
-                    text="📨 Отклики"
-                )
-            ],
-
-            [
-                KeyboardButton(
-                    text="📣 Поделиться проектом"
+                    text="📺 Лента вакансий"
                 )
             ],
 
@@ -538,3 +539,357 @@ def employer_cabinet_keyboard() -> ReplyKeyboardMarkup:
         ],
         resize_keyboard=True,
     )
+
+
+def company_keyboard() -> ReplyKeyboardMarkup:
+
+    return ReplyKeyboardMarkup(
+        keyboard=[
+
+            [
+                KeyboardButton(
+                    text="✏️ Редактировать"
+                )
+            ],
+
+            [
+                KeyboardButton(
+                    text="⬅️ Назад"
+                )
+            ],
+
+        ],
+        resize_keyboard=True,
+    )
+
+
+def company_start_keyboard() -> ReplyKeyboardMarkup:
+
+    return ReplyKeyboardMarkup(
+        keyboard=[
+
+            [
+                KeyboardButton(
+                    text="✅ Создать карточку компании"
+                )
+            ],
+
+            [
+                KeyboardButton(
+                    text="⏭ Продолжить без карточки"
+                )
+            ],
+
+            [
+                KeyboardButton(
+                    text="⬅️ Назад"
+                )
+            ],
+
+        ],
+        resize_keyboard=True,
+    )
+
+
+def continue_keyboard() -> ReplyKeyboardMarkup:
+
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [
+                KeyboardButton(
+                    text="✅ Продолжить"
+                )
+            ]
+        ],
+        resize_keyboard=True
+    )
+
+def skip_keyboard() -> ReplyKeyboardMarkup:
+
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [
+                KeyboardButton(
+                    text="⏭ Пропустить"
+                )
+            ]
+        ],
+        resize_keyboard=True
+    )
+
+
+def city_keyboard() -> ReplyKeyboardMarkup:
+
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [
+                KeyboardButton(
+                    text="🏠 Удалённо"
+                )
+            ],
+            [
+                KeyboardButton(
+                    text="⏭ Пропустить"
+                )
+            ]
+        ],
+        resize_keyboard=True
+    )
+
+def contacts_keyboard() -> ReplyKeyboardMarkup:
+
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [
+                KeyboardButton(
+                    text="Telegram"
+                )
+            ],
+            [
+                KeyboardButton(
+                    text="WhatsApp"
+                )
+            ],
+            [
+                KeyboardButton(
+                    text="Телефон"
+                )
+            ],
+            [
+                KeyboardButton(
+                    text="Любой способ"
+                )
+            ],
+            [
+                KeyboardButton(
+                    text="⏭ Пропустить"
+                )
+            ]
+        ],
+        resize_keyboard=True
+    )
+
+def employer_vacancy_keyboard(
+    vacancy_id: int
+) -> InlineKeyboardMarkup:
+
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+
+            [
+                InlineKeyboardButton(
+                    text="📨 Отклики",
+                    callback_data=f"view_candidates:{vacancy_id}"
+                )
+            ],
+
+            [
+                InlineKeyboardButton(
+                    text="✏️ Редактировать",
+                    callback_data=f"edit_vacancy:{vacancy_id}"
+                ),
+
+                InlineKeyboardButton(
+                    text="🔒 Закрыть",
+                    callback_data=f"close_vacancy:{vacancy_id}"
+                )
+            ],
+
+            [
+                InlineKeyboardButton(
+                    text="🚀 Продвигать",
+                    callback_data=f"promote_vacancy:{vacancy_id}"
+                )
+            ]
+        ]
+    )
+
+
+def edit_vacancy_keyboard(
+    vacancy_id: int
+) -> InlineKeyboardMarkup:
+
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+
+            [
+                InlineKeyboardButton(
+                    text="💼 Название",
+                    callback_data=f"edit_title:{vacancy_id}"
+                )
+            ],
+
+            [
+                InlineKeyboardButton(
+                    text="💰 Зарплата",
+                    callback_data=f"edit_salary:{vacancy_id}"
+                )
+            ],
+
+            [
+                InlineKeyboardButton(
+                    text="🕒 График",
+                    callback_data=f"edit_schedule:{vacancy_id}"
+                )
+            ],
+
+            [
+                InlineKeyboardButton(
+                    text="📋 Описание",
+                    callback_data=f"edit_description:{vacancy_id}"
+                )
+            ],
+
+            [
+                InlineKeyboardButton(
+                    text="📞 Контакты",
+                    callback_data=f"edit_contacts:{vacancy_id}"
+                )
+            ]
+        ]
+    )
+
+
+def confirm_vacancy_edit_keyboard() -> InlineKeyboardMarkup:
+
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+
+            [
+                InlineKeyboardButton(
+                    text="✅ Сохранить",
+                    callback_data="confirm_vacancy_edit"
+                )
+            ],
+
+            [
+                InlineKeyboardButton(
+                    text="❌ Отмена",
+                    callback_data="cancel_vacancy_edit"
+                )
+            ]
+        ]
+    )
+
+
+def confirm_salary_edit_keyboard() -> InlineKeyboardMarkup:
+
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+
+            [
+                InlineKeyboardButton(
+                    text="✅ Сохранить",
+                    callback_data="confirm_salary_edit"
+                )
+            ],
+
+            [
+                InlineKeyboardButton(
+                    text="❌ Отмена",
+                    callback_data="cancel_salary_edit"
+                )
+            ]
+        ]
+    )
+
+
+def confirm_contacts_edit_keyboard() -> InlineKeyboardMarkup:
+
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+
+            [
+                InlineKeyboardButton(
+                    text="✅ Сохранить",
+                    callback_data="confirm_contacts_edit"
+                )
+            ],
+
+            [
+                InlineKeyboardButton(
+                    text="❌ Отмена",
+                    callback_data="cancel_contacts_edit"
+                )
+            ]
+        ]
+    )
+
+
+
+def confirm_schedule_edit_keyboard() -> InlineKeyboardMarkup:
+
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+
+            [
+                InlineKeyboardButton(
+                    text="✅ Сохранить",
+                    callback_data="confirm_schedule_edit"
+                )
+            ],
+
+            [
+                InlineKeyboardButton(
+                    text="❌ Отмена",
+                    callback_data="cancel_schedule_edit"
+                )
+            ]
+        ]
+    )
+
+
+def confirm_title_edit_keyboard() -> InlineKeyboardMarkup:
+
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+
+            [
+                InlineKeyboardButton(
+                    text="✅ Сохранить",
+                    callback_data="confirm_title_edit"
+                )
+            ],
+
+            [
+                InlineKeyboardButton(
+                    text="❌ Отмена",
+                    callback_data="cancel_title_edit"
+                )
+            ]
+        ]
+    )
+
+
+
+def candidate_preview_keyboard(
+    seeker_id: int
+) -> InlineKeyboardMarkup:
+
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="👀 Подробнее",
+                    callback_data=f"candidate:{seeker_id}"
+                )
+            ]
+        ]
+    )
+
+
+def candidate_preview_keyboard(
+    seeker_id: int
+) -> InlineKeyboardMarkup:
+
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="👀 Подробнее",
+                    callback_data=f"candidate:{seeker_id}"
+                )
+            ]
+        ]
+    )
+

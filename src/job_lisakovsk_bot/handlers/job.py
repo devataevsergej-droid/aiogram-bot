@@ -20,10 +20,14 @@ from job_lisakovsk_bot.constants import (
     FEATURE_VIP_SEEKER,
     PAYMENT_TYPE_MANUAL,
 )
+
 from job_lisakovsk_bot.db import SupabaseRepository
 from job_lisakovsk_bot.keyboards.job_inline import (
     employer_candidates_keyboard,
     admin_manual_payment_keyboard,
+    edit_vacancy_keyboard,
+    candidate_preview_keyboard,
+    employer_vacancy_keyboard,
     buy_unlimited_keyboard,
     channel_post_keyboard,
     employer_feedback_keyboard,
@@ -35,11 +39,22 @@ from job_lisakovsk_bot.keyboards.job_inline import (
     seeker_cabinet_keyboard,
     seeker_feedback_keyboard,
     seeker_vip_keyboard,
+    continue_keyboard,
     spheres_keyboard,
+    company_start_keyboard,
     vacancies_keyboard,
     vacancy_responded_keyboard,
     vacancy_paid_features_keyboard,
-)
+    skip_keyboard,
+    city_keyboard,
+    contacts_keyboard,
+    company_keyboard,
+    confirm_vacancy_edit_keyboard,
+    confirm_contacts_edit_keyboard,
+    confirm_salary_edit_keyboard,
+    confirm_schedule_edit_keyboard,
+    confirm_title_edit_keyboard,
+    )
 from job_lisakovsk_bot.services.job_text import (
     admin_stats_text,
     employer_stats_text,
@@ -114,7 +129,13 @@ async def get_user_role(
 
 @router.message(F.text == "🔄 Переключиться на соискателя")
 @router.message(F.text == "🔄 Переключиться на работодателя")
-async def toggle_role(message: Message, repo: SupabaseRepository):
+async def toggle_role(
+    message: Message,
+    state: FSMContext,
+    repo: SupabaseRepository
+):
+
+    await state.clear()
 
     current_role = await get_user_role(
         message.from_user.id,
@@ -192,20 +213,60 @@ class VacancyForm(StatesGroup):
     sphere = State()
     schedule = State()
     salary = State()
+
+    location = State()
+
+    requirements = State()
+    benefits = State()
+
     contacts = State()
     description = State()
+
     waiting_payment_check = State()
 
 
+class EditVacancyForm(StatesGroup):
+    waiting_title = State()
+    waiting_salary = State()
+    waiting_schedule = State()
+    waiting_description = State()
+    waiting_contacts = State()
+    
+    confirm_contacts = State()
+    confirm_title = State()
+    confirm_salary = State()
+    confirm_schedule = State()
+    confirm_description = State()
+
+
+class CompanyForm(StatesGroup):
+    intro = State()
+
+    name = State()
+
+    industry = State()
+    hiring_keywords = State()
+
+    city = State()
+    contacts = State()
+    description = State()
+
+class CompanyEditForm(StatesGroup):
+    city = State()
+    contacts = State()
+    description = State()    
+
 class RejectVacancyForm(StatesGroup):
     reason = State()
+
 
 class AdminSettingsForm(StatesGroup):
     waiting_for_price = State()
     waiting_for_phone = State()
 
+
 class PinDaysForm(StatesGroup):
-    waiting_for_days = State()
+    waiting_for_days = State()    
 
 
 async def send_vacancy_notifications(
@@ -299,10 +360,11 @@ async def start(
     bot: Bot,
 ) -> None:
 
-    arg = command.args
-    await message.answer(f"DEBUG ARG: {arg}")
+    referrer_id = parse_referral_arg(
+        command.args
+    )
 
-    referrer_id = parse_referral_arg(arg)
+    arg = command.args
 
     if referrer_id is not None:
 
@@ -432,9 +494,18 @@ async def start(
     # Быстрый старт вакансии
     if arg == "vacancy":
 
-        await vacancy_start(
-            message,
-            state
+        await state.clear()
+
+        await state.set_state(
+            VacancyForm.title
+        )
+
+        await message.answer(
+            "👔 Кого ищете? Напишите должность или услугу.\n\n"
+            "Например:\n"
+            "Сварщик\n"
+            "Бариста\n"
+            "Продавец"
         )
 
         return
@@ -477,11 +548,20 @@ async def cmd_resume(
 async def cmd_vacancy(
     message: Message,
     state: FSMContext
-):
+) -> None:
 
-    await vacancy_start(
-        message,
-        state
+    await state.clear()
+
+    await state.set_state(
+        VacancyForm.title
+    )
+
+    await message.answer(
+        "👔 Кого ищете? Напишите должность или услугу.\n\n"
+        "Например:\n"
+        "Сварщик\n"
+        "Бариста\n"
+        "Продавец"
     )
 
 
@@ -574,13 +654,14 @@ async def seeker_start(
         "Например:\n"
         "Продавец, Кассир, Администратор\n\n"
         "Нажмите:\n"
-        "Продолжить"
+        "Продолжить",
+        reply_markup=continue_keyboard()
     )
 
 
 @router.message(
     SeekerForm.intro,
-    F.text.casefold() == "продолжить"
+    F.text == "✅ Продолжить"
 )
 async def seeker_intro_continue(
     message: Message,
@@ -765,12 +846,14 @@ async def seeker_skills(
     )
 
     await message.answer(
-        "💰 Укажите желаемую зарплату.\n\n"
+        "💰 Укажите желаемую зарплату в тысячах тенге.\n\n"
         "Например:\n"
-        "250000\n"
-        "300000\n\n"
-        "Или напишите:\n"
-        "Пропустить"
+        "300\n"
+        "400\n"
+        "300-500\n\n"
+        "Или нажмите:\n"
+        "⏭ Пропустить",
+        reply_markup=skip_keyboard()
     )
 
 
@@ -846,13 +929,14 @@ async def seeker_rotation_work(
     )
 
     await message.answer(
-        "🚘 Есть водительское удостоверение?\n\n"
-        "Например:\n"
-        "Нет\n"
-        "Категория B\n"
-        "Категория C\n"
-        "Категория CE"
-    )
+    "🚘 Есть водительское удостоверение?\n\n"
+    "Например:\n"
+    "Нет\n"
+    "Категория B\n"
+    "Категория C\n"
+    "Категория CE",
+    reply_markup=skip_keyboard()
+)
 
 @router.message(SeekerForm.driver_license)
 async def seeker_driver_license(
@@ -860,8 +944,16 @@ async def seeker_driver_license(
     state: FSMContext
 ) -> None:
 
+    value = (message.text or "").strip()
+
+    if value.lower() in [
+        "пропустить",
+        "⏭ пропустить"
+    ]:
+        value = None
+
     await state.update_data(
-        driver_license=(message.text or "").strip()
+        driver_license=value
     )
 
     await state.set_state(
@@ -870,9 +962,11 @@ async def seeker_driver_license(
 
     await message.answer(
         "📍 В каком городе вы ищете работу?\n\n"
-        "Например:\n"
-        "Лисаковск"
+        "Введите название города вручную\n"
+        "или выберите вариант ниже.",
+        reply_markup=city_keyboard()
     )
+
 
 @router.message(SeekerForm.city)
 async def seeker_city(
@@ -880,8 +974,19 @@ async def seeker_city(
     state: FSMContext
 ) -> None:
 
+    value = (message.text or "").strip()
+
+    if value.lower() in [
+        "пропустить",
+        "⏭ пропустить"
+    ]:
+        value = None
+
+    elif value == "🏠 Удалённо":
+        value = "Удалённо"
+
     await state.update_data(
-        city=(message.text or "").strip()
+        city=value
     )
 
     await state.set_state(
@@ -904,7 +1009,10 @@ async def seeker_salary(
 
     text = (message.text or "").strip()
 
-    if text.lower() == "пропустить":
+    if text.lower() in [
+        "пропустить",
+        "⏭ пропустить"
+    ]:
 
         await state.update_data(
             salary_min=None,
@@ -915,33 +1023,37 @@ async def seeker_salary(
 
         try:
 
-            salary = int(
-                text.replace(" ", "")
-            )
+            if "-" in text:
 
-            if salary < 50000:
-
-                await message.answer(
-                    "❌ Укажите зарплату числом.\n\n"
-                    "Например:\n"
-                    "250000"
+                salary_min, salary_max = (
+                    text.replace(" ", "")
+                    .split("-", 1)
                 )
 
-                return
+                await state.update_data(
+                    salary_min=int(salary_min),
+                    salary_max=int(salary_max)
+                )
 
-            await state.update_data(
-                salary_min=salary,
-                salary_max=salary
-            )
+            else:
+
+                salary = int(
+                    text.replace(" ", "")
+                )
+
+                await state.update_data(
+                    salary_min=salary,
+                    salary_max=None
+                )
 
         except ValueError:
 
             await message.answer(
-                "❌ Укажите зарплату числом.\n\n"
+                "❌ Укажите зарплату правильно.\n\n"
                 "Например:\n"
-                "250000\n\n"
-                "Или напишите:\n"
-                "Пропустить"
+                "300\n"
+                "400\n"
+                "300-500"
             )
 
             return
@@ -974,12 +1086,8 @@ async def seeker_about(
     )
 
     await message.answer(
-        "📞 Как с вами удобнее связаться?\n\n"
-        "Например:\n"
-        "WhatsApp\n"
-        "Telegram\n"
-        "Телефон\n"
-        "Любой способ"
+        "📞 Предпочтительный способ связи",
+        reply_markup=contacts_keyboard()
     )
 
 @router.message(SeekerForm.contacts)
@@ -991,8 +1099,16 @@ async def seeker_contacts_finish(
 
     try:
 
+        value = (message.text or "").strip()
+
+        if value.lower() in [
+            "пропустить",
+            "⏭ пропустить"
+        ]:
+            value = None
+
         await state.update_data(
-            contacts=(message.text or "").strip()
+            contacts=value
         )
 
         data = await state.get_data()
@@ -1054,6 +1170,209 @@ async def seeker_contacts_finish(
         )
 
 
+@router.message(
+    F.text == "✅ Создать карточку компании"
+)
+async def start_company_creation(
+    message: Message,
+    state: FSMContext
+) -> None:
+
+    await state.clear()
+
+    await state.set_state(
+        CompanyForm.intro
+    )
+
+    await message.answer(
+        "<b>🏢 Карточка компании</b>\n\n"
+
+        "Чем подробнее заполнена карточка, тем лучше система сможет:\n\n"
+
+        "• рекомендовать вашу компанию кандидатам\n"
+        "• подбирать подходящих сотрудников\n"
+        "• улучшать качество откликов\n"
+        "• использовать AI-подбор в будущем\n\n"
+
+        "<b>Особенно важны:</b>\n"
+        "🏢 Название компании\n"
+        "📍 Город\n"
+        "📝 Описание деятельности\n\n"
+
+        "Нажмите:\n"
+        "✅ Продолжить",
+
+        parse_mode="HTML",
+        reply_markup=continue_keyboard()
+    )   
+
+@router.message(CompanyForm.intro)
+async def company_intro(
+    message: Message,
+    state: FSMContext
+) -> None:
+
+    await state.set_state(
+        CompanyForm.name
+    )
+
+    await message.answer(
+        "🏢 Введите название компании.\n\n"
+        "Например:\n"
+        "ТОО Лисаковск Хаб\n"
+        "Магазин Уют\n"
+        "ИП Иванов"
+    )
+
+
+
+@router.message(CompanyForm.name)
+async def company_name(
+    message: Message,
+    state: FSMContext
+) -> None:
+
+    await state.update_data(
+        name=(message.text or "").strip()
+    )
+
+    await state.set_state(
+        CompanyForm.industry
+    )
+
+    await message.answer(
+        "🏭 Укажите сферу деятельности компании.\n\n"
+        "Например:\n"
+        "Строительство\n"
+        "Торговля\n"
+        "Общепит\n"
+        "Производство\n"
+        "IT\n"
+        "Услуги"
+    )
+
+
+@router.message(CompanyForm.industry)
+async def company_industry(
+    message: Message,
+    state: FSMContext
+) -> None:
+
+    await state.update_data(
+        industry=(message.text or "").strip()
+    )
+
+    await state.set_state(
+        CompanyForm.hiring_keywords
+    )
+
+    await message.answer(
+        "👥 Кого вы обычно ищете?\n\n"
+        "Перечислите через запятую.\n\n"
+        "Например:\n"
+        "Сварщик, Монтажник, Водитель\n\n"
+        "или\n\n"
+        "Продавец, Кассир, Администратор"
+    )
+
+
+@router.message(CompanyForm.hiring_keywords)
+async def company_hiring_keywords(
+    message: Message,
+    state: FSMContext
+) -> None:
+
+    await state.update_data(
+        hiring_keywords=(message.text or "").strip()
+    )
+
+    await state.set_state(
+        CompanyForm.city
+    )
+
+    await message.answer(
+        "📍 Укажите город компании."
+    )
+
+
+@router.message(CompanyForm.city)
+async def company_city(
+    message: Message,
+    state: FSMContext
+) -> None:
+
+    await state.update_data(
+        city=(message.text or "").strip()
+    )
+
+    await state.set_state(
+        CompanyForm.contacts
+    )
+
+    await message.answer(
+        "📞 Укажите контакты компании.\n\n"
+        "Например:\n"
+        "+7 777 123 45 67\n"
+        "@company\n"
+        "WhatsApp"
+    )
+
+
+@router.message(CompanyForm.contacts)
+async def company_contacts(
+    message: Message,
+    state: FSMContext
+) -> None:
+
+    await state.update_data(
+        contacts=(message.text or "").strip()
+    )
+
+    await state.set_state(
+        CompanyForm.description
+    )
+
+    await message.answer(
+        "📝 Кратко расскажите о компании.\n\n"
+        "Например:\n"
+        "Розничная торговля товарами для дома.\n"
+        "Работаем более 10 лет."
+    )
+
+
+@router.message(CompanyForm.description)
+async def company_description(
+    message: Message,
+    state: FSMContext,
+    repo: SupabaseRepository
+) -> None:
+
+    data = await state.get_data()
+
+    payload = {
+        "owner_id": message.from_user.id,
+        "name": data.get("name"),
+
+        "industry": data.get("industry"),
+        "hiring_keywords": data.get("hiring_keywords"),
+
+        "city": data.get("city"),
+        "contacts": data.get("contacts"),
+        "description": (message.text or "").strip(),
+
+        "active": True,
+    }
+
+    await repo.create_company(payload)
+
+    await state.clear()
+
+    await message.answer(
+        "✅ Компания успешно создана.\n\n"
+        "Теперь вы сможете использовать её при публикации вакансий."
+    )
+
+
 """
 # @router.message(F.text.in_({"🔍 Смотреть вакансии", "/vacancies"}))
 async def show_vacancies(
@@ -1099,27 +1418,6 @@ async def show_vacancies(
         """
 
 
-@router.message(F.text == "📢 Разместить вакансию")
-async def vacancy_start(
-    message: Message,
-    state: FSMContext
-) -> None:
-
-    await state.clear()
-
-    await state.set_state(
-        VacancyForm.company_name
-    )
-
-    await message.answer(
-        "🏢 Укажите название организации.\n\n"
-        "Например:\n"
-        "ТОО Рога и Копыта\n"
-        "Магазин «Уют»\n"
-        "Салон красоты Beauty\n"
-        "ИП Иванов"
-    )
-
 
 @router.message(VacancyForm.company_name)
 async def vacancy_company_name(
@@ -1146,10 +1444,36 @@ async def vacancy_company_name(
 
 
 @router.message(VacancyForm.title)
-async def vacancy_title(message: Message, state: FSMContext) -> None:
-    await state.update_data(title=(message.text or "").strip())
-    await state.set_state(VacancyForm.sphere)
-    await message.answer("📂 Выберите сферу:", reply_markup=spheres_keyboard("vacancy_sphere"))
+async def vacancy_title(
+    message: Message,
+    state: FSMContext
+) -> None:
+
+    text = (message.text or "").strip()
+
+    if text in {
+        "👤 Личный кабинет",
+        "📋 Мои вакансии",
+        "🏢 Моя компания",
+        "⬅️ Назад",
+    }:
+        await state.clear()
+        return
+
+    await state.update_data(
+        title=text
+    )
+
+    await state.set_state(
+        VacancyForm.sphere
+    )
+
+    await message.answer(
+        "📂 Выберите сферу:",
+        reply_markup=spheres_keyboard(
+            "vacancy_sphere"
+        )
+    )
 
 
 @router.callback_query(VacancyForm.sphere, F.data.startswith("vacancy_sphere:"))
@@ -1166,14 +1490,18 @@ async def vacancy_schedule(callback: CallbackQuery, state: FSMContext) -> None:
     await state.set_state(VacancyForm.salary)
 
     await callback.message.edit_text(
-        "💰 Укажите зарплату в тысячах тенге.\n\n"
+        "💰 Укажите зарплату\n\n"
+
         "Примеры:\n"
-        "200\n"
-        "350\n"
-        "500\n\n"
-        "Или диапазон:\n"
-        "200-300\n"
-        "350-500"
+        "2 = 2 тыс. тг.\n"
+        "20 = 20 тыс. тг.\n"
+        "200 = 200 тыс. тг.\n"
+        "500 = 500 тыс. тг.\n"
+        "1000 = 1 млн. тг.\n\n"
+
+        "Диапазон:\n"
+        "200-300 = 200–300 тыс. тг.\n"
+        "1000-1500 = 1–1,5 млн. тг."
     )
 
     await callback.answer()
@@ -1220,13 +1548,46 @@ async def vacancy_salary(message: Message, state: FSMContext) -> None:
         salary_max=salary_max
     )
 
-    await state.set_state(VacancyForm.contacts)
+    await state.set_state(
+        VacancyForm.location
+    )
+
+    await message.answer(
+        "📍 Где находится работа?\n\n"
+
+        "Примеры:\n"
+        "Лисаковск\n"
+        "Рудный\n"
+        "Костанай\n"
+        "Астана\n"
+        "Удалённо\n"
+        "Вахта"
+    )
+
+
+
+@router.message(VacancyForm.location)
+async def vacancy_location(
+    message: Message,
+    state: FSMContext
+) -> None:
+
+    await state.update_data(
+        location=(message.text or "").strip()
+    )
+
+    await state.set_state(
+        VacancyForm.contacts
+    )
 
     await message.answer(
         "📞 Как с вами связаться?\n\n"
-        "Укажите телефон, мессенджер и удобное время для связи.\n\n"
+
+        "Укажите телефон, e-mail, мессенджер и удобное время для связи.\n\n"
+
         "Например:\n"
-        "87771234567\n"
+        "87779996655\n"
+        "izi.corp@mail.ru\n"
         "WhatsApp\n"
         "с 09:00 до 18:00"
     )
@@ -1241,7 +1602,14 @@ async def vacancy_contacts(message: Message, state: FSMContext) -> None:
     await state.set_state(VacancyForm.description)
 
     await message.answer(
-        "📝 Опишите, что требуется от кандидата."
+        "📝 Опишите обязанности и требования\n\n"
+
+        "Пример:\n"
+        "• Консультирование клиентов\n"
+        "• Работа с кассой\n"
+        "• Приём и выкладка товара\n"
+        "• Ответственность\n"
+        "• Умение работать в коллективе"
     )
 
 
@@ -1266,10 +1634,13 @@ async def vacancy_description(
             "employer_username": message.from_user.username,
 
             "company_name": data["company_name"],
+            "company_id": data.get("company_id"),
 
             "title": data["title"],
             "sphere": data["sphere"],
             "schedule": data["schedule"],
+            "location": data["location"],
+
             "salary_min": data["salary_min"],
             "salary_max": data["salary_max"],
             "contacts": data["contacts"],
@@ -1309,6 +1680,7 @@ async def vacancy_description(
                 vacancy,
                 settings.bot_username
             ),
+            parse_mode="HTML",
             reply_markup=moderation_keyboard(
                 vacancy["id"]
             ),
@@ -1334,8 +1706,15 @@ async def approve_vacancy(callback: CallbackQuery, repo: SupabaseRepository, set
 
     channel_message = await bot.send_message(
         settings.channel_id,
-        vacancy_public_text(vacancy, settings.bot_username),
-        reply_markup=channel_post_keyboard(vacancy_id, settings.bot_username)
+        vacancy_public_text(
+            vacancy,
+            settings.bot_username
+        ),
+        parse_mode="HTML",
+        reply_markup=channel_post_keyboard(
+            vacancy_id,
+            settings.bot_username
+        )
     )
     
     vacancy = await repo.approve_vacancy(vacancy_id, channel_message.message_id)
@@ -1413,13 +1792,7 @@ async def vacancy_like(callback: CallbackQuery, repo: SupabaseRepository, bot: B
         return
 
 
-    await repo.set_reaction(
-        vacancy_id,
-        callback.from_user.id,
-        "like"
-    )
-
-    await repo.set_reaction(vacancy_id, callback.from_user.id, "like")
+    await repo.set_reaction(vacancy_id, callback.from_user.id, "like") 
     contact = f"@{callback.from_user.username}" if callback.from_user.username else f"telegram id {callback.from_user.id}"
     await bot.send_message(
         vacancy["employer_id"],
@@ -1822,9 +2195,12 @@ async def manual_payment_reject(callback: CallbackQuery, repo: SupabaseRepositor
 @router.message(Command("invite"))
 async def invite_friend(
     message: Message,
+    state: FSMContext,
     repo: SupabaseRepository,
     settings: Settings
 ) -> None:
+
+    await state.clear()
 
     referrals_count = await repo.count_referrals(
         message.from_user.id
@@ -1856,8 +2232,12 @@ async def invite_friend(
 )
 async def our_channel(
     message: Message,
+    state: FSMContext,
     settings: Settings
-):
+) -> None:
+
+    await state.clear()
+
     await message.answer(
         "📢 *Лента вакансий Лисаковска*\n\n"
         "Все новые вакансии публикуются в нашем канале.\n\n"
@@ -1898,8 +2278,23 @@ async def lk_command(message: Message, repo: SupabaseRepository):
 @router.message(F.text.in_({"👤 Личный кабинет", "/my_stats"}))
 async def my_stats(
     message: Message,
+    state: FSMContext,
     repo: SupabaseRepository
 ) -> None:
+
+    logger.warning("LK CLICKED")
+
+    logger.warning(
+        f"LK CURRENT STATE = {await state.get_state()}"
+    )
+
+    await state.clear()
+
+    current_state = await state.get_state()
+
+    logger.warning(
+        f"LK AFTER CLEAR | state={current_state}"
+    )
 
     try:
 
@@ -2037,6 +2432,46 @@ async def my_stats(
         )
 
 
+def show_value(value: str | None) -> str:
+
+    if not value:
+        return "Не указано"
+
+    if value.lower() in {
+        "пропустить",
+        "⏭ пропустить",
+        "➡️ пропустить",
+        "⏩ пропустить",
+    }:
+        return "Не указано"
+
+    return value
+
+
+def format_phone(phone: str | None) -> str:
+
+    if not phone:
+        return "Не указано"
+
+    digits = "".join(
+        ch for ch in phone
+        if ch.isdigit()
+    )
+
+    if len(digits) == 11 and digits.startswith("8"):
+        digits = "7" + digits[1:]
+
+    if len(digits) == 11 and digits.startswith("7"):
+        return (
+            f"+7 {digits[1:4]} "
+            f"{digits[4:7]} "
+            f"{digits[7:9]} "
+            f"{digits[9:11]}"
+        )
+
+    return phone
+
+
 @router.message(F.text == "📝 Моя анкета")
 async def my_resume(
     message: Message,
@@ -2054,11 +2489,54 @@ async def my_resume(
         )
 
         return
+    
+    salary = format_salary(
+        seeker.get("salary_min"),
+        seeker.get("salary_max")
+    )
+
+    text = (
+        f"<b>👤 Соискатель</b>\n"
+        f"{show_value(seeker.get('full_name'))}\n\n"
+
+        f"<b>🎂 Возраст</b>\n"
+        f"{show_value(str(seeker.get('age')) if seeker.get('age') else None)}\n\n"
+
+        f"<b>📱 Телефон</b>\n"
+        f"{format_phone(seeker.get('phone'))}\n\n"
+
+        f"<b>🎯 Желаемые должности</b>\n"
+        f"{show_value(seeker.get('desired_positions'))}\n\n"
+
+        f"<b>🏷 Ключевые навыки</b>\n"
+        f"{show_value(seeker.get('skills'))}\n\n"
+
+        f"<b>💰 Зарплата</b>\n"
+        f"{salary}\n\n"
+
+        f"<b>📍 Город</b>\n"
+        f"{show_value(seeker.get('city'))}\n\n"
+
+        f"<b>🕒 График</b>\n"
+        f"{show_value(seeker.get('schedule'))}\n\n"
+
+        f"<b>🚚 Вахта</b>\n"
+        f"{show_value(seeker.get('rotation_work'))}\n\n"
+
+        f"<b>🚘 Водительское удостоверение</b>\n"
+        f"{show_value(seeker.get('driver_license'))}\n\n"
+
+        f"<b>📝 О себе</b>\n"
+        f"{show_value(seeker.get('about'))}\n\n"
+
+        f"<b>📞 Способ связи</b>\n"
+        f"{show_value(seeker.get('contacts'))}"
+    )
 
     await message.answer(
-    text,
-    reply_markup=seeker_resume_keyboard()
-)
+        text,
+        parse_mode="HTML"
+    )
 
 
 @router.message(F.text == "📨 Отклики")
@@ -2081,7 +2559,7 @@ async def employer_responses(
 
             return
 
-        text = "📨 Отклики на вакансии:\n\n"
+        found_responses = False
 
         for vacancy in vacancies[:10]:
 
@@ -2092,6 +2570,8 @@ async def employer_responses(
             if not responses:
                 continue
 
+            found_responses = True
+
             status = vacancy.get("status")
 
             status_text = {
@@ -2101,13 +2581,7 @@ async def employer_responses(
                 "closed": "🔒 Закрыта",
             }.get(status, status)
 
-            text += (
-                f"💼 {vacancy.get('title', 'Без названия')}\n"
-                f"{status_text}\n"
-                f"📩 Откликов: {len(responses)}\n\n"
-            )
-
-        await message.answer(
+            await message.answer(
                 (
                     f"💼 {vacancy.get('title', 'Без названия')}\n"
                     f"{status_text}\n"
@@ -2116,6 +2590,12 @@ async def employer_responses(
                 reply_markup=employer_candidates_keyboard(
                     vacancy["id"]
                 )
+            )
+
+        if not found_responses:
+
+            await message.answer(
+                "📭 На ваши вакансии пока никто не откликнулся."
             )
 
     except Exception as e:
@@ -2149,9 +2629,9 @@ async def view_candidates(
             "📭 Пока никто не откликнулся."
         )
 
-        return
+        await callback.answer()
 
-    text = "👥 Кандидаты:\n\n"
+        return
 
     for response in responses[:10]:
 
@@ -2161,21 +2641,6 @@ async def view_candidates(
 
         if not seeker:
             continue
-
-        logger.warning(
-            f"SEEKER DATA: {seeker}"
-        )
-
-        logger.warning(
-            f"SEEKER DATA: {seeker}"
-        )
-
-        username = seeker.get("username")
-
-        if username:
-            username = f"@{username}"
-        else:
-            username = "не указан"
 
         salary = format_salary(
             seeker.get("salary_min"),
@@ -2187,15 +2652,97 @@ async def view_candidates(
             "не указаны"
         )
 
-        text += (
+        candidate_text = (
             f"👤 {seeker.get('full_name', 'Без имени')}\n"
+            f"📍 {seeker.get('city') or 'Не указан'}\n"
             f"💰 {salary}\n"
-            f"📞 {contacts}\n\n"
+            f"📞 {contacts}"
         )
+
+        await callback.message.answer(
+            candidate_text,
+            reply_markup=candidate_preview_keyboard(
+                seeker["user_id"]
+            )
+        )
+
+    await callback.answer()
+
+@router.callback_query(
+    F.data.startswith("candidate:")
+)
+async def candidate_details(
+    callback: CallbackQuery,
+    repo: SupabaseRepository
+):
+
+    seeker_id = int(
+        callback.data.split(":")[1]
+    )
+
+    seeker = await repo.get_seeker(
+        seeker_id
+    )
+
+    if not seeker:
+
+        await callback.answer(
+            "Кандидат не найден",
+            show_alert=True
+        )
+
+        return
+
+    salary = format_salary(
+        seeker.get("salary_min"),
+        seeker.get("salary_max")
+    )
+
+    username = seeker.get("username")
+
+    if username:
+        username = f"@{username}"
+    else:
+        username = "не указан"
+
+    text = (
+        f"👤 {seeker.get('full_name') or 'Не указано'}\n\n"
+
+        f"🎂 Возраст: {seeker.get('age') or 'Не указан'}\n"
+        f"📍 Город: {seeker.get('city') or 'Не указан'}\n\n"
+
+        f"💼 Желаемые должности:\n"
+        f"{seeker.get('desired_positions') or 'Не указано'}\n\n"
+
+        f"🏭 Сфера:\n"
+        f"{seeker.get('sphere') or 'Не указано'}\n\n"
+
+        f"🕒 График:\n"
+        f"{seeker.get('schedule') or 'Не указано'}\n\n"
+
+        f"💰 Зарплатные ожидания:\n"
+        f"{salary}\n\n"
+
+        f"🛠 Навыки:\n"
+        f"{seeker.get('skills') or 'Не указано'}\n\n"
+
+        f"📝 О себе:\n"
+        f"{seeker.get('about') or 'Не указано'}\n\n"
+
+        f"📞 Контакты:\n"
+        f"{seeker.get('contacts') or 'Не указаны'}\n"
+
+        f"☎️ Телефон:\n"
+        f"{seeker.get('phone') or 'Не указан'}\n"
+
+        f"📨 Telegram:\n"
+        f"{username}"
+    )
 
     await callback.message.answer(text)
 
     await callback.answer()
+
 
 @router.message(Command("admin_stats"))
 async def admin_stats(message: Message, repo: SupabaseRepository, settings: Settings) -> None:
@@ -2207,8 +2754,11 @@ async def admin_stats(message: Message, repo: SupabaseRepository, settings: Sett
 @router.message(F.text == "⬅️ Назад")
 async def back_to_main_menu(
     message: Message,
+    state: FSMContext,
     repo: SupabaseRepository
 ) -> None:
+
+    await state.clear()
 
     user_role = await get_user_role(
         message.from_user.id,
@@ -2221,6 +2771,7 @@ async def back_to_main_menu(
             user_role=user_role
         )
     )
+
 
 @router.message(F.text == "📊 Админ-статистика")
 async def admin_stats_button(
@@ -2237,6 +2788,211 @@ async def admin_stats_button(
             await repo.admin_stats()
         )
     )
+
+@router.message(F.text == "🏢 Моя компания")
+async def my_company(
+    message: Message,
+    state: FSMContext,
+    repo: SupabaseRepository
+) -> None:
+
+    await state.clear()
+
+    company = await repo.get_company_by_owner(
+        message.from_user.id
+    )
+
+    if not company:
+
+        await message.answer(
+            "🏢 <b>Карточка компании</b>\n\n"
+
+            "Рекомендуем создать карточку компании перед публикацией вакансий.\n\n"
+
+            "Это поможет системе:\n"
+            "• точнее подбирать сотрудников\n"
+            "• рекомендовать компанию подходящим кандидатам\n"
+            "• улучшить будущий AI-подбор\n"
+            "• повысить количество откликов\n\n"
+
+            "Карточка компании не обязательна.\n"
+            "Вы можете публиковать вакансии и без неё.",
+
+            parse_mode="HTML",
+            reply_markup=company_start_keyboard()
+        )
+
+        return
+
+    await message.answer(
+        f"🏢 {company['name']}\n\n"
+
+        f"🏭 Сфера деятельности:\n"
+        f"{company.get('industry') or 'Не указано'}\n\n"
+
+        f"👥 Обычно ищем:\n"
+        f"{company.get('hiring_keywords') or 'Не указано'}\n\n"
+
+        f"📍 Город:\n"
+        f"{company.get('city') or 'Не указано'}\n\n"
+
+        f"📞 Контакты:\n"
+        f"{company.get('contacts') or 'Не указано'}\n\n"
+
+        f"📝 Описание:\n"
+        f"{company.get('description') or 'Описание отсутствует'}",
+        reply_markup=company_keyboard()
+    )
+
+
+@router.message(F.text == "📋 Мои вакансии")
+async def my_vacancies(
+    message: Message,
+    state: FSMContext,
+    repo: SupabaseRepository
+) -> None:
+
+    await state.clear()
+
+    vacancies = await repo.list_employer_vacancies(
+        message.from_user.id
+    )
+
+    if not vacancies:
+
+        await message.answer(
+            "📭 У вас пока нет вакансий."
+        )
+
+        return
+
+    for vacancy in vacancies:
+
+        status = {
+            "approved": "✅ Активна",
+            "pending": "⏳ На модерации",
+            "rejected": "❌ Отклонена",
+            "closed": "🔒 Закрыта",
+        }.get(
+            vacancy.get("status"),
+            vacancy.get("status")
+        )
+
+        await message.answer(
+            f"💼 {vacancy['title']}\n"
+            f"{status}",
+            reply_markup=employer_vacancy_keyboard(
+                vacancy["id"]
+            )
+        )
+
+
+@router.message(F.text == "📢 Разместить вакансию")
+async def vacancy_start(
+    message: Message,
+    state: FSMContext,
+    repo: SupabaseRepository
+) -> None:
+
+    logger.warning(
+        f"VACANCY_START CLICKED | text={message.text}"
+    )
+
+    current_state = await state.get_state()
+
+    logger.warning(
+        f"VACANCY_START BEFORE CLEAR | state={current_state}"
+    )
+
+    await state.clear()
+
+    current_state = await state.get_state()
+
+    logger.warning(
+        f"VACANCY_START AFTER CLEAR | state={current_state}"
+    )
+
+    company = await repo.get_company_by_owner(
+        message.from_user.id
+    )
+
+    logger.warning(
+        f"VACANCY_START COMPANY FOUND = {bool(company)}"
+    )
+
+    if company:
+
+        await state.update_data(
+            company_id=company["id"],
+            company_name=company["name"]
+        )
+
+        await state.set_state(
+            VacancyForm.title
+        )
+
+        logger.warning(
+            "VACANCY_START -> VacancyForm.title"
+        )
+
+        await message.answer(
+            f"🏢 Компания: {company['name']}\n\n"
+            "Введите название вакансии.\n\n"
+            "Например:\n"
+            "Продавец\n"
+            "Менеджер\n"
+            "Водитель"
+        )
+
+        return
+
+    await state.set_state(
+        CompanyForm.intro
+    )
+
+    logger.warning(
+        "VACANCY_START -> CompanyForm.intro"
+    )
+
+    await message.answer(
+        "<b>🏢 Рекомендуем создать карточку компании</b>\n\n"
+
+        "От качества заполнения карточки зависит скорость подбора сотрудников.\n\n"
+
+        "Система сможет:\n"
+        "• рекомендовать вашу компанию кандидатам\n"
+        "• подбирать более подходящих сотрудников\n"
+        "• доставлять отклики прямо в личный кабинет\n\n"
+
+        "Также соискатели смогут отправлять свои анкеты напрямую работодателям.\n\n"
+
+        "Все отклики будут приходить в ваш личный кабинет.\n\n"
+
+        "Выберите действие:",
+        parse_mode="HTML",
+        reply_markup=company_start_keyboard()
+    )
+
+@router.message(
+    F.text == "⏭ Продолжить без карточки"
+)
+async def vacancy_without_company(
+    message: Message,
+    state: FSMContext
+) -> None:
+
+    await state.set_state(
+        VacancyForm.title
+    )
+
+    await message.answer(
+        "💼 Введите название вакансии.\n\n"
+        "Например:\n"
+        "Продавец\n"
+        "Менеджер\n"
+        "Водитель"
+    )
+
 
 
 @router.callback_query(F.data.startswith("hide_post:"))
@@ -2265,6 +3021,1158 @@ async def close_vacancy(callback: CallbackQuery, repo: SupabaseRepository) -> No
         await callback.answer("❌ Вакансия не найдена", show_alert=True)
         return
     await callback.answer("✅ Вакансия отмечена как закрытая.", show_alert=True)
+
+
+async def show_edit_vacancy(
+    message: Message,
+    vacancy_id: int,
+    repo: SupabaseRepository
+) -> None:
+
+    vacancy = await repo.get_vacancy(
+        vacancy_id
+    )
+
+    if not vacancy:
+
+        await message.answer(
+            "❌ Вакансия не найдена."
+        )
+
+        return
+
+    salary = format_salary(
+        vacancy.get("salary_min"),
+        vacancy.get("salary_max")
+    )
+
+    await message.answer(
+        f"📄 <b>Текущая вакансия</b>\n\n"
+
+        f"💼 <b>Название</b>\n"
+        f"{vacancy.get('title')}\n\n"
+
+        f"💰 <b>Зарплата</b>\n"
+        f"{salary}\n\n"
+
+        f"🕒 <b>График</b>\n"
+        f"{vacancy.get('schedule')}\n\n"
+
+        f"📋 <b>Описание</b>\n"
+        f"{vacancy.get('description')}\n\n"
+
+        f"📞 <b>Контакты</b>\n"
+        f"{vacancy.get('contacts') or 'Не указано'}\n\n"
+
+        "✏️ Что хотите изменить?",
+
+        parse_mode="HTML",
+
+        reply_markup=edit_vacancy_keyboard(
+            vacancy_id
+        )
+    )
+
+
+@router.callback_query(
+    F.data.startswith("edit_vacancy:")
+)
+async def edit_vacancy(
+    callback: CallbackQuery,
+    state: FSMContext,
+    repo: SupabaseRepository
+) -> None:
+
+    vacancy_id = int(
+        callback.data.split(":")[1]
+    )
+
+    await state.update_data(
+        edit_vacancy_id=vacancy_id
+    )
+
+    await show_edit_vacancy(
+        callback.message,
+        vacancy_id,
+        repo
+    )
+
+    await callback.answer()
+
+
+
+@router.callback_query(
+    F.data.startswith("edit_contacts:")
+)
+async def edit_vacancy_contacts(
+    callback: CallbackQuery,
+    state: FSMContext
+) -> None:
+
+    vacancy_id = int(
+        callback.data.split(":")[1]
+    )
+
+    await state.update_data(
+        edit_vacancy_id=vacancy_id
+    )
+
+    await state.set_state(
+        EditVacancyForm.waiting_contacts
+    )
+
+    await callback.message.answer(
+        "📞 Введите новые контакты:"
+    )
+
+    await callback.answer()
+
+
+@router.callback_query(
+    F.data.startswith("edit_title:")
+)
+async def edit_vacancy_title(
+    callback: CallbackQuery,
+    state: FSMContext,
+    repo: SupabaseRepository
+) -> None:
+
+    vacancy_id = int(
+        callback.data.split(":")[1]
+    )
+
+    vacancy = await repo.get_vacancy(
+        vacancy_id
+    )
+
+    if not vacancy:
+
+        await callback.message.answer(
+            "❌ Вакансия не найдена."
+        )
+
+        await callback.answer()
+
+        return
+
+    await state.update_data(
+        edit_vacancy_id=vacancy_id
+    )
+
+    await state.set_state(
+        EditVacancyForm.waiting_title
+    )
+
+    await callback.message.answer(
+        f"💼 Текущее название:\n\n"
+        f"{vacancy.get('title')}\n\n"
+        f"Введите новое название вакансии:"
+    )
+
+    await callback.answer()
+
+
+@router.callback_query(
+    F.data.startswith("edit_salary:")
+)
+async def edit_vacancy_salary(
+    callback: CallbackQuery,
+    state: FSMContext,
+    repo: SupabaseRepository
+) -> None:
+
+    vacancy_id = int(
+        callback.data.split(":")[1]
+    )
+
+    vacancy = await repo.get_vacancy(
+        vacancy_id
+    )
+
+    if not vacancy:
+
+        await callback.message.answer(
+            "❌ Вакансия не найдена."
+        )
+
+        await callback.answer()
+
+        return
+
+    current_salary = format_salary(
+        vacancy.get("salary_min"),
+        vacancy.get("salary_max")
+    )
+
+    await state.update_data(
+        edit_vacancy_id=vacancy_id
+    )
+
+    await state.set_state(
+        EditVacancyForm.waiting_salary
+    )
+
+    await callback.message.answer(
+        f"💰 Текущая зарплата:\n\n"
+        f"{current_salary}\n\n"
+        f"Введите новую зарплату.\n\n"
+        f"Примеры:\n"
+        f"200\n"
+        f"350\n"
+        f"500\n\n"
+        f"Или диапазон:\n"
+        f"200-300\n"
+        f"350-500"
+    )
+
+    await callback.answer()
+
+
+@router.callback_query(
+    F.data.startswith("edit_schedule:")
+)
+async def edit_vacancy_schedule(
+    callback: CallbackQuery,
+    state: FSMContext,
+    repo: SupabaseRepository
+) -> None:
+
+    vacancy_id = int(
+        callback.data.split(":")[1]
+    )
+
+    vacancy = await repo.get_vacancy(
+        vacancy_id
+    )
+
+    if not vacancy:
+
+        await callback.message.answer(
+            "❌ Вакансия не найдена."
+        )
+
+        await callback.answer()
+
+        return
+
+    current_schedule = (
+        vacancy.get("schedule")
+        or "Не указан"
+    )
+
+    await state.update_data(
+        edit_vacancy_id=vacancy_id
+    )
+
+    await state.set_state(
+        EditVacancyForm.waiting_schedule
+    )
+
+    await callback.message.answer(
+        f"🕒 Текущий график:\n\n"
+        f"{current_schedule}\n\n"
+        f"Выберите новый график:",
+        reply_markup=schedules_keyboard(
+            "edit_schedule_value"
+        )
+    )
+
+    await callback.answer()
+
+
+
+@router.callback_query(
+    EditVacancyForm.waiting_schedule,
+    F.data.startswith("edit_schedule_value:")
+)
+async def select_vacancy_schedule(
+    callback: CallbackQuery,
+    state: FSMContext,
+    repo: SupabaseRepository
+) -> None:
+
+    data = await state.get_data()
+
+    vacancy_id = data.get(
+        "edit_vacancy_id"
+    )
+
+    if not vacancy_id:
+
+        await callback.message.answer(
+            "❌ Вакансия не найдена."
+        )
+
+        await state.clear()
+
+        await callback.answer()
+
+        return
+
+    vacancy = await repo.get_vacancy(
+        vacancy_id
+    )
+
+    if not vacancy:
+
+        await callback.message.answer(
+            "❌ Вакансия не найдена."
+        )
+
+        await state.clear()
+
+        await callback.answer()
+
+        return
+
+    new_schedule = callback.data.split(
+        ":",
+        1
+    )[1]
+
+    await state.update_data(
+        new_schedule=new_schedule
+    )
+
+    await state.set_state(
+        EditVacancyForm.confirm_schedule
+    )
+
+    old_schedule = (
+        vacancy.get("schedule")
+        or "Не указан"
+    )
+
+    await callback.message.answer(
+        "🕒 Изменение графика\n\n"
+
+        f"🔹 Было:\n"
+        f"{old_schedule}\n\n"
+
+        f"🔹 Станет:\n"
+        f"{new_schedule}\n\n"
+
+        "Сохранить изменения?",
+
+        reply_markup=confirm_schedule_edit_keyboard()
+    )
+
+    await callback.answer()
+
+
+@router.callback_query(
+    F.data.startswith("edit_description:")
+)
+async def edit_vacancy_description(
+    callback: CallbackQuery,
+    state: FSMContext,
+    repo: SupabaseRepository
+) -> None:
+
+    vacancy_id = int(
+        callback.data.split(":")[1]
+    )
+
+    vacancy = await repo.get_vacancy(
+        vacancy_id
+    )
+
+    if not vacancy:
+
+        await callback.message.answer(
+            "❌ Вакансия не найдена."
+        )
+
+        await callback.answer()
+
+        return
+
+    await state.update_data(
+        edit_vacancy_id=vacancy_id
+    )
+
+    await state.set_state(
+        EditVacancyForm.waiting_description
+    )
+
+    await callback.message.answer(
+        f"📋 Текущее описание:\n\n"
+        f"{vacancy.get('description')}\n\n"
+        f"Введите новое описание:"
+    )
+
+    await callback.answer()
+
+
+@router.callback_query(
+    F.data.startswith("edit_contacts:")
+)
+async def edit_vacancy_contacts(
+    callback: CallbackQuery,
+    state: FSMContext,
+    repo: SupabaseRepository
+) -> None:
+
+    vacancy_id = int(
+        callback.data.split(":")[1]
+    )
+
+    vacancy = await repo.get_vacancy(
+        vacancy_id
+    )
+
+    if not vacancy:
+
+        await callback.message.answer(
+            "❌ Вакансия не найдена."
+        )
+
+        await callback.answer()
+
+        return
+
+    await state.update_data(
+        edit_vacancy_id=vacancy_id
+    )
+
+    await state.set_state(
+        EditVacancyForm.waiting_contacts
+    )
+
+    await callback.message.answer(
+        f"📞 Текущие контакты:\n\n"
+        f"{vacancy.get('contacts') or 'Не указано'}\n\n"
+        f"Введите новые контакты:"
+    )
+
+    await callback.answer()
+
+
+@router.message(
+    EditVacancyForm.waiting_contacts
+)
+async def save_vacancy_contacts(
+    message: Message,
+    state: FSMContext,
+    repo: SupabaseRepository
+) -> None:
+
+    data = await state.get_data()
+
+    vacancy_id = data.get(
+        "edit_vacancy_id"
+    )
+
+    if not vacancy_id:
+
+        await message.answer(
+            "❌ Вакансия не найдена."
+        )
+
+        await state.clear()
+
+        return
+
+    vacancy = await repo.get_vacancy(
+        vacancy_id
+    )
+
+    if not vacancy:
+
+        await message.answer(
+            "❌ Вакансия не найдена."
+        )
+
+        await state.clear()
+
+        return
+
+    old_contacts = (
+        vacancy.get("contacts")
+        or "Не указано"
+    )
+
+    new_contacts = (
+        message.text or ""
+    ).strip()
+
+    await state.update_data(
+        new_contacts=new_contacts
+    )
+
+    await state.set_state(
+        EditVacancyForm.confirm_contacts
+    )
+
+    await message.answer(
+        "📞 Изменение контактов\n\n"
+
+        f"🔹 Было:\n"
+        f"{old_contacts}\n\n"
+
+        f"🔹 Станет:\n"
+        f"{new_contacts}\n\n"
+
+        "Сохранить изменения?",
+
+        reply_markup=confirm_contacts_edit_keyboard()
+    )
+
+
+@router.message(
+    EditVacancyForm.waiting_title
+)
+async def save_vacancy_title(
+    message: Message,
+    state: FSMContext,
+    repo: SupabaseRepository
+) -> None:
+
+    data = await state.get_data()
+
+    vacancy_id = data.get(
+        "edit_vacancy_id"
+    )
+
+    if not vacancy_id:
+
+        await message.answer(
+            "❌ Вакансия не найдена."
+        )
+
+        await state.clear()
+
+        return
+
+    vacancy = await repo.get_vacancy(
+        vacancy_id
+    )
+
+    if not vacancy:
+
+        await message.answer(
+            "❌ Вакансия не найдена."
+        )
+
+        await state.clear()
+
+        return
+
+    old_title = (
+        vacancy.get("title")
+        or "Без названия"
+    )
+
+    new_title = (
+        message.text or ""
+    ).strip()
+
+    await state.update_data(
+        new_title=new_title
+    )
+
+    await state.set_state(
+        EditVacancyForm.confirm_title
+    )
+
+    await message.answer(
+        "💼 Изменение названия\n\n"
+
+        f"🔹 Было:\n"
+        f"{old_title}\n\n"
+
+        f"🔹 Станет:\n"
+        f"{new_title}\n\n"
+
+        "Сохранить изменения?",
+
+        reply_markup=confirm_title_edit_keyboard()
+    )
+
+
+@router.message(
+    EditVacancyForm.waiting_salary
+)
+async def save_vacancy_salary(
+    message: Message,
+    state: FSMContext,
+    repo: SupabaseRepository
+) -> None:
+
+    data = await state.get_data()
+
+    vacancy_id = data.get(
+        "edit_vacancy_id"
+    )
+
+    if not vacancy_id:
+
+        await message.answer(
+            "❌ Вакансия не найдена."
+        )
+
+        await state.clear()
+
+        return
+
+    vacancy = await repo.get_vacancy(
+        vacancy_id
+    )
+
+    if not vacancy:
+
+        await message.answer(
+            "❌ Вакансия не найдена."
+        )
+
+        await state.clear()
+
+        return
+
+    text = (
+        message.text or ""
+    ).strip()
+
+    try:
+
+        salary_min, salary_max = (
+            parse_salary_range(text)
+        )
+
+    except ValueError:
+
+        await message.answer(
+            "❌ Не понял сумму.\n\n"
+            "Примеры:\n"
+            "200\n"
+            "350\n"
+            "500\n\n"
+            "Или диапазон:\n"
+            "200-300\n"
+            "350-500"
+        )
+
+        return
+
+    await state.update_data(
+        new_salary_min=salary_min,
+        new_salary_max=salary_max
+    )
+
+    await state.set_state(
+        EditVacancyForm.confirm_salary
+    )
+
+    old_salary = format_salary(
+        vacancy.get("salary_min"),
+        vacancy.get("salary_max")
+    )
+
+    new_salary = format_salary(
+        salary_min,
+        salary_max
+    )
+
+    await message.answer(
+        "💰 Изменение зарплаты\n\n"
+
+        f"🔹 Было:\n"
+        f"{old_salary}\n\n"
+
+        f"🔹 Станет:\n"
+        f"{new_salary}\n\n"
+
+        "Сохранить изменения?",
+
+        reply_markup=confirm_salary_edit_keyboard()
+    )
+
+
+@router.message(
+    EditVacancyForm.waiting_schedule
+)
+async def save_vacancy_schedule(
+    message: Message,
+    state: FSMContext,
+    repo: SupabaseRepository
+) -> None:
+
+    data = await state.get_data()
+    vacancy_id = data.get("edit_vacancy_id")
+
+    if not vacancy_id:
+        await message.answer("❌ Вакансия не найдена.")
+        await state.clear()
+        return
+
+    await repo.update_vacancy_field(
+        vacancy_id=vacancy_id,
+        employer_id=message.from_user.id,
+        field="schedule",
+        value=(message.text or "").strip()
+    )
+
+    vacancy = await repo.get_vacancy(vacancy_id)
+
+    await state.clear()
+
+    await message.answer(
+        f"✅ График обновлён.\n\n"
+        f"💼 {vacancy.get('title')}\n"
+        f"🕒 {vacancy.get('schedule')}"
+    )
+
+
+@router.message(
+    EditVacancyForm.waiting_description
+)
+async def save_vacancy_description(
+    message: Message,
+    state: FSMContext,
+    repo: SupabaseRepository
+) -> None:
+
+    data = await state.get_data()
+
+    vacancy_id = data.get(
+        "edit_vacancy_id"
+    )
+
+    if not vacancy_id:
+
+        await message.answer(
+            "❌ Вакансия не найдена."
+        )
+
+        await state.clear()
+
+        return
+
+    vacancy = await repo.get_vacancy(
+        vacancy_id
+    )
+
+    if not vacancy:
+
+        await message.answer(
+            "❌ Вакансия не найдена."
+        )
+
+        await state.clear()
+
+        return
+
+    old_description = (
+        vacancy.get("description")
+        or "Не указано"
+    )
+
+    new_description = (
+        message.text or ""
+    ).strip()
+
+    await state.update_data(
+        new_description=new_description
+    )
+
+    await state.set_state(
+        EditVacancyForm.confirm_description
+    )
+
+    await message.answer(
+        "📋 Изменение описания\n\n"
+
+        f"🔹 Было:\n"
+        f"{old_description}\n\n"
+
+        f"🔹 Станет:\n"
+        f"{new_description}\n\n"
+
+        "Сохранить изменения?",
+
+        reply_markup=confirm_vacancy_edit_keyboard()
+    )
+
+
+@router.callback_query(
+    F.data == "confirm_vacancy_edit"
+)
+async def confirm_vacancy_description_edit(
+    callback: CallbackQuery,
+    state: FSMContext,
+    repo: SupabaseRepository
+) -> None:
+
+    data = await state.get_data()
+
+    vacancy_id = data.get(
+        "edit_vacancy_id"
+    )
+
+    new_description = data.get(
+        "new_description"
+    )
+
+    if not vacancy_id:
+
+        await callback.message.answer(
+            "❌ Вакансия не найдена."
+        )
+
+        await state.clear()
+
+        await callback.answer()
+
+        return
+
+    await repo.update_vacancy_field(
+        vacancy_id=vacancy_id,
+        employer_id=callback.from_user.id,
+        field="description",
+        value=new_description
+    )
+
+    vacancy = await repo.get_vacancy(
+        vacancy_id
+    )
+
+    await state.clear()
+
+    await callback.message.answer(
+        "✅ Изменения сохранены."
+    )
+
+    await show_edit_vacancy(
+        callback.message,
+        vacancy_id,
+        repo
+    )
+
+    await callback.answer()
+
+
+@router.callback_query(
+    F.data == "confirm_salary_edit"
+)
+async def confirm_salary_edit(
+    callback: CallbackQuery,
+    state: FSMContext,
+    repo: SupabaseRepository
+) -> None:
+
+    data = await state.get_data()
+
+    vacancy_id = data.get(
+        "edit_vacancy_id"
+    )
+
+    salary_min = data.get(
+        "new_salary_min"
+    )
+
+    salary_max = data.get(
+        "new_salary_max"
+    )
+
+    if not vacancy_id:
+
+        await callback.message.answer(
+            "❌ Вакансия не найдена."
+        )
+
+        await state.clear()
+
+        await callback.answer()
+
+        return
+
+    await repo.update_vacancy_field(
+        vacancy_id=vacancy_id,
+        employer_id=callback.from_user.id,
+        field="salary_min",
+        value=salary_min
+    )
+
+    await repo.update_vacancy_field(
+        vacancy_id=vacancy_id,
+        employer_id=callback.from_user.id,
+        field="salary_max",
+        value=salary_max
+    )
+
+    vacancy = await repo.get_vacancy(
+        vacancy_id
+    )
+
+    await state.clear()
+
+    await callback.message.answer(
+        "✅ Изменения сохранены."
+    )
+
+    await show_edit_vacancy(
+        callback.message,
+        vacancy_id,
+        repo
+    )
+
+    await callback.answer()
+
+
+@router.callback_query(
+    F.data == "confirm_schedule_edit"
+)
+async def confirm_schedule_edit(
+    callback: CallbackQuery,
+    state: FSMContext,
+    repo: SupabaseRepository
+) -> None:
+
+    data = await state.get_data()
+
+    vacancy_id = data.get(
+        "edit_vacancy_id"
+    )
+
+    new_schedule = data.get(
+        "new_schedule"
+    )
+
+    if not vacancy_id:
+
+        await callback.message.answer(
+            "❌ Вакансия не найдена."
+        )
+
+        await state.clear()
+
+        await callback.answer()
+
+        return
+
+    await repo.update_vacancy_field(
+        vacancy_id=vacancy_id,
+        employer_id=callback.from_user.id,
+        field="schedule",
+        value=new_schedule
+    )
+
+    vacancy = await repo.get_vacancy(
+        vacancy_id
+    )
+
+    await state.clear()
+
+    await callback.message.answer(
+        "✅ Изменения сохранены."
+    )
+
+    await show_edit_vacancy(
+        callback.message,
+        vacancy_id,
+        repo
+    )
+
+    await callback.answer()
+
+
+@router.callback_query(
+    F.data == "confirm_title_edit"
+)
+async def confirm_title_edit(
+    callback: CallbackQuery,
+    state: FSMContext,
+    repo: SupabaseRepository
+) -> None:
+
+    data = await state.get_data()
+
+    vacancy_id = data.get(
+        "edit_vacancy_id"
+    )
+
+    new_title = data.get(
+        "new_title"
+    )
+
+    if not vacancy_id:
+
+        await callback.message.answer(
+            "❌ Вакансия не найдена."
+        )
+
+        await state.clear()
+
+        await callback.answer()
+
+        return
+
+    await repo.update_vacancy_field(
+        vacancy_id=vacancy_id,
+        employer_id=callback.from_user.id,
+        field="title",
+        value=new_title
+    )
+
+    vacancy = await repo.get_vacancy(
+        vacancy_id
+    )
+
+    await state.clear()
+
+    await callback.message.answer(
+        "✅ Название сохранено."
+    )
+
+    await show_edit_vacancy(
+        callback.message,
+        vacancy_id,
+        repo
+    )
+
+    await callback.answer()
+
+
+@router.callback_query(
+    F.data == "cancel_title_edit"
+)
+async def cancel_title_edit(
+    callback: CallbackQuery,
+    state: FSMContext
+) -> None:
+
+    await state.clear()
+
+    await callback.message.answer(
+        "❌ Изменение названия отменено."
+    )
+
+    await callback.answer()
+
+
+
+
+@router.callback_query(
+    F.data == "cancel_schedule_edit"
+)
+async def cancel_schedule_edit(
+    callback: CallbackQuery,
+    state: FSMContext
+) -> None:
+
+    await state.clear()
+
+    await callback.message.answer(
+        "❌ Изменение графика отменено."
+    )
+
+    await callback.answer()
+
+
+
+@router.callback_query(
+    F.data == "cancel_salary_edit"
+)
+async def cancel_salary_edit(
+    callback: CallbackQuery,
+    state: FSMContext
+) -> None:
+
+    await state.clear()
+
+    await callback.message.answer(
+        "❌ Изменение зарплаты отменено."
+    )
+
+    await callback.answer()
+
+
+@router.callback_query(
+    F.data == "cancel_vacancy_edit"
+)
+async def cancel_vacancy_description_edit(
+    callback: CallbackQuery,
+    state: FSMContext
+) -> None:
+
+    await state.clear()
+
+    await callback.message.answer(
+        "❌ Изменение отменено."
+    )
+
+    await callback.answer()
+
+
+@router.callback_query(
+    F.data == "confirm_contacts_edit"
+)
+async def confirm_contacts_edit(
+    callback: CallbackQuery,
+    state: FSMContext,
+    repo: SupabaseRepository
+) -> None:
+
+    data = await state.get_data()
+
+    vacancy_id = data.get(
+        "edit_vacancy_id"
+    )
+
+    new_contacts = data.get(
+        "new_contacts"
+    )
+
+    if not vacancy_id:
+
+        await callback.message.answer(
+            "❌ Вакансия не найдена."
+        )
+
+        await state.clear()
+
+        await callback.answer()
+
+        return
+
+    await repo.update_vacancy_field(
+        vacancy_id=vacancy_id,
+        employer_id=callback.from_user.id,
+        field="contacts",
+        value=new_contacts
+    )
+
+    await state.clear()
+
+    await callback.message.answer(
+        "✅ Контакты сохранены."
+    )
+
+    await show_edit_vacancy(
+        callback.message,
+        vacancy_id,
+        repo
+    )
+
+    await callback.answer()
+
+
+@router.callback_query(
+    F.data == "cancel_contacts_edit"
+)
+async def cancel_contacts_edit(
+    callback: CallbackQuery,
+    state: FSMContext
+) -> None:
+
+    await state.clear()
+
+    await callback.message.answer(
+        "❌ Изменение контактов отменено."
+    )
+
+    await callback.answer()
+
 
 
 @router.callback_query(F.data.startswith("hide_post:"))

@@ -1,14 +1,46 @@
 from __future__ import annotations
 
+from datetime import datetime
 
-def format_salary(salary_min: int | None, salary_max: int | None) -> str:
+
+def format_salary(
+    salary_min: int | None,
+    salary_max: int | None
+) -> str:
+
     if salary_min is None and salary_max is None:
         return "Не важно"
-    if salary_min is not None and salary_max is not None:
-        return f"{salary_min:,} – {salary_max:,} тыс. тг".replace(",", " ")
+
+    if (
+        salary_min is not None
+        and salary_max is not None
+    ):
+
+        if salary_min == salary_max:
+            return f"от {salary_min} тыс. тг."
+
+        return f"{salary_min}-{salary_max} тыс. тг."
+
     if salary_min is not None:
-        return f"от {salary_min:,} тыс. тг".replace(",", " ")
-    return f"до {salary_max:,} тыс. тг".replace(",", " ")
+        return f"от {salary_min} тыс. тг."
+
+    return f"до {salary_max} тыс. тг."
+
+
+MONTHS = {
+    1: "Январь",
+    2: "Февраль",
+    3: "Март",
+    4: "Апрель",
+    5: "Май",
+    6: "Июнь",
+    7: "Июль",
+    8: "Август",
+    9: "Сентябрь",
+    10: "Октябрь",
+    11: "Ноябрь",
+    12: "Декабрь",
+}
 
 
 def vacancy_public_text(vacancy: dict, bot_username: str) -> str:
@@ -27,21 +59,36 @@ def vacancy_public_text(vacancy: dict, bot_username: str) -> str:
     schedule = vacancy["schedule"].lower()
     description = vacancy["description"]
     contacts = vacancy["contacts"]
+    now = datetime.now()
+
+    month_tag = (
+        f"#{MONTHS[now.month]}{now.year}@LisakovskHub"
+    )
 
     return (
-        f"🏢 {company_name}\n\n"
-        f"📍 Лисаковск\n\n"
-        f"💼 Требуется:\n"
+        f"🏢 <b>Компания</b>\n"
+        f"{company_name}\n\n"
+
+        f"💼 <b>Вакансия</b>\n"
         f"{title}\n\n"
-        f"💰 Зарплата:\n"
+
+        f"📍 <b>Место работы</b>\n"
+        f"{vacancy.get('location') or 'Не указано'}\n\n"
+
+        f"💰 <b>Зарплата</b>\n"
         f"{salary}\n\n"
-        f"🕒 График:\n"
+
+        f"🕒 <b>График</b>\n"
         f"{schedule.capitalize()}\n\n"
-        f"📋 Обязанности:\n"
+
+        f"📋 <b>Обязанности</b>\n"
         f"{description}\n\n"
-        f"📞 Контакты:\n"
+
+        f"📞 <b>Контакты</b>\n"
         f"{contacts}\n\n"
-        f"#Май2026@LisakovskHub #Работа@LisakovskHub\n\n"
+
+        f"{month_tag} #Работа@LisakovskHub\n\n"
+
         f"Разместить свою вакансию:\n"
         f"@{bot_username}"
     )
